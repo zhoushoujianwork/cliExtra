@@ -24,6 +24,7 @@ show_help() {
     echo "  $0 clean <instance_id>       - 清理指定实例"
     echo "  $0 clean-all                 - 清理所有实例"
     echo "  $0 role <command>            - 角色预设管理"
+    echo "  $0 ns <command>              - namespace管理"
     echo "  $0 help                      - 显示此帮助"
     echo ""
     echo "启动示例:"
@@ -100,6 +101,9 @@ case "${1:-}" in
         ;;
     "role")
         "$SCRIPT_DIR/bin/cliExtra-role.sh" "${@:2}"
+        ;;
+    "ns")
+        "$SCRIPT_DIR/bin/cliExtra-ns.sh" "${@:2}"
         ;;
     "help"|"")
         show_help
