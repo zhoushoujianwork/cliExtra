@@ -205,7 +205,7 @@ project/
 
 ## 项目结构
 
-每个项目目录下会创建 `.cliExtra` 目录：
+每个项目目录下会创建 `.cliExtra` 目录和 `.amazonq` 目录：
 
 ```
 project/
@@ -213,11 +213,25 @@ project/
 │   ├── config              # 项目配置
 │   ├── instances/          # 实例目录
 │   │   └── instance_123/   # 实例123的会话信息
-│   │       └── tmux.log    # tmux会话日志
+│   │       ├── tmux.log    # tmux会话日志
+│   │       ├── namespace   # 实例namespace信息
+│   │       └── info        # 实例详细信息
 │   └── logs/               # 日志目录
 │       └── instance_123.log # 实例123的日志
+├── .amazonq/
+│   └── rules/              # Amazon Q规则目录（自动同步）
+│       ├── frontend-engineer.md    # 前端工程师角色预设
+│       ├── backend-engineer.md     # 后端工程师角色预设
+│       ├── devops-engineer.md      # 运维工程师角色预设
+│       ├── cliextra-collaboration.md # 协作增强规则
+│       └── role-boundaries.md      # 角色边界规则
 └── ... (项目文件)
 ```
+
+**重要**: 
+- `.amazonq/rules` 目录在每次启动实例时自动从 `cliExtra/rules` 同步
+- 每个项目都有独立的rules副本，确保项目间的隔离
+- rules文件包含协作感知能力和角色边界管理
 
 ## tmux操作
 
