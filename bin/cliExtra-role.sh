@@ -228,8 +228,17 @@ apply_role() {
     echo -e "${YELLOW}应用角色预设: $role_name${NC}"
     cp "$role_file" "$target_file"
     
+    # 复制通用边界规则
+    local boundary_file="$(dirname "$(dirname "$0")")/rules/role-boundaries.md"
+    if [ -f "$boundary_file" ]; then
+        local boundary_target="$rules_dir/role-boundaries.md"
+        echo -e "${YELLOW}应用通用角色边界规则${NC}"
+        cp "$boundary_file" "$boundary_target"
+    fi
+    
     echo -e "${GREEN}✓ 角色预设已应用到项目: $project_dir${NC}"
-    echo -e "${BLUE}预设文件位置: $target_file${NC}"
+    echo -e "${BLUE}角色预设文件: $target_file${NC}"
+    echo -e "${BLUE}边界规则文件: $rules_dir/role-boundaries.md${NC}"
 }
 
 # 移除项目中的角色预设
@@ -277,10 +286,18 @@ remove_role() {
         fi
     done
     
+    # 移除通用边界规则
+    local boundary_file="$rules_dir/role-boundaries.md"
+    if [ -f "$boundary_file" ]; then
+        rm -f "$boundary_file"
+        echo -e "${GREEN}✓ 已移除: 通用角色边界规则${NC}"
+        ((removed_count++))
+    fi
+    
     if [ $removed_count -eq 0 ]; then
         echo -e "${YELLOW}没有找到角色预设文件${NC}"
     else
-        echo -e "${GREEN}✓ 已移除 $removed_count 个角色预设${NC}"
+        echo -e "${GREEN}✓ 已移除 $removed_count 个文件${NC}"
     fi
 }
 

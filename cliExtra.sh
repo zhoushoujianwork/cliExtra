@@ -33,6 +33,8 @@ show_help() {
     echo "  $0 start https://github.com/user/repo.git  # 克隆并启动，自动生成实例ID"
     echo "  $0 start --name myproject    # 在当前目录启动，指定实例名为myproject"
     echo "  $0 start ../ --name test     # 在上级目录启动，指定实例名为test"
+    echo "  $0 start --role frontend     # 在当前目录启动并应用前端工程师角色"
+    echo "  $0 start --name backend --role backend  # 启动并应用后端工程师角色"
     echo ""
     echo "其他示例:"
     echo "  $0 send myproject '你好，Q!'  # 发送消息到实例myproject"
