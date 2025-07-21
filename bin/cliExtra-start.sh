@@ -109,7 +109,36 @@ EOF
     echo "$target_dir"
 }
 
-# 启动tmux中的q CLI实例
+# 同步rules到项目目录
+sync_rules_to_project() {
+    local project_dir="$1"
+    local rules_source_dir="$SCRIPT_DIR/../rules"
+    local rules_target_dir="$project_dir/.amazonq/rules"
+    
+    # 创建目标目录
+    mkdir -p "$rules_target_dir"
+    
+    # 检查源rules目录是否存在
+    if [[ ! -d "$rules_source_dir" ]]; then
+        echo "警告: rules源目录不存在: $rules_source_dir"
+        return 1
+    fi
+    
+    echo "同步rules到项目目录..."
+    echo "源目录: $rules_source_dir"
+    echo "目标目录: $rules_target_dir"
+    
+    # 同步所有rules文件
+    if cp -r "$rules_source_dir"/* "$rules_target_dir/" 2>/dev/null; then
+        echo "✓ rules同步完成"
+        
+        # 列出同步的文件
+        echo "已同步的rules文件:"
+        ls -la "$rules_target_dir" | grep -v "^total" | awk '{print "  - " $9}' | grep -v "^  - $"
+    else
+        echo "⚠ rules同步失败或源目录为空"
+    fi
+}
 start_tmux_instance() {
     local instance_id="$1"
     local project_dir="$2"
@@ -126,6 +155,9 @@ start_tmux_instance() {
     # 创建会话目录
     mkdir -p "$session_dir"
     mkdir -p "$(dirname "$log_file")"
+    
+    # 同步rules到项目目录
+    sync_rules_to_project "$project_dir"
     
     # 检查实例是否已经在运行
     if tmux has-session -t "$session_name" 2>/dev/null; then
