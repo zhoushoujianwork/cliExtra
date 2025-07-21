@@ -14,7 +14,7 @@ show_help() {
     echo "用法:"
     echo "  $0 config                    - 配置全局设置"
     echo "  $0 start [path] [--name <name>] - 启动实例"
-    echo "  $0 send <instance_id> <msg>  - 发送消息到指定实例"
+  $0 resume <instance_id>      - 恢复已停止的实例，载入历史上下文    echo "  $0 send <instance_id> <msg>  - 发送消息到指定实例"
     echo "  $0 attach <instance_id>      - 接管指定实例终端"
     echo "  $0 stop <instance_id>        - 停止指定实例"
     echo "  $0 list [instance_id] [--json] - 列出所有实例或显示指定实例详情"
@@ -42,9 +42,11 @@ show_help() {
     echo "  $0 start --name backend --role backend  # 启动并应用后端工程师角色"
     echo "  $0 start --namespace frontend           # 在frontend namespace中启动实例"
     echo "  $0 start --name api --ns backend        # 在backend namespace中启动名为api的实例"
+    echo "  $0 start --context old-instance         # 恢复已停止的实例，载入历史上下文"
     echo ""
     echo "其他示例:"
     echo "  $0 send myproject '你好，Q!'  # 发送消息到实例myproject"
+    echo "  $0 resume myproject          # 恢复已停止的实例myproject，载入历史上下文"
     echo "  $0 attach myproject          # 接管实例myproject终端"
     echo "  $0 stop myproject            # 停止实例myproject"
     echo "  $0 clean myproject           # 清理实例myproject"
@@ -85,6 +87,13 @@ case "${1:-}" in
         ;;
     "start")
         "$SCRIPT_DIR/bin/cliExtra-start.sh" "${@:2}"
+        ;;
+    "resume")
+        if [ -z "$2" ]; then
+            echo "用法: $0 resume <instance_id>"
+            exit 1
+        fi
+        "$SCRIPT_DIR/bin/cliExtra-start.sh" --context "${@:2}"
         ;;
     "send")
         "$SCRIPT_DIR/bin/cliExtra-send.sh" "${@:2}"

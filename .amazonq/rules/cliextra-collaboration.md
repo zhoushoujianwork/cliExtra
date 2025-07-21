@@ -8,21 +8,21 @@
 
 1. **查看同namespace实例**
    ```bash
-   qq ns show
+   cliExtra ns show
    ```
    - 查看当前namespace中的所有实例
    - 了解可协作的其他角色
 
 2. **发送消息给指定实例**
    ```bash
-   qq send <instance_id> "<message>"
+   cliExtra send <instance_id> "<message>"
    ```
    - 向同namespace或其他namespace的实例发送消息
    - 用于任务交接、状态通知、协作请求
 
 3. **广播消息给同namespace实例**
    ```bash
-   qq broadcast "<message>"
+   cliExtra broadcast "<message>"
    ```
    - 广播消息给所有实例
    - 支持 `--namespace <ns>` 指定目标namespace
@@ -31,7 +31,7 @@
 
 4. **查看所有实例**
    ```bash
-   qq list
+   cliExtra list
    ```
    - 查看系统中所有运行的实例
    - 了解整体协作环境
@@ -121,7 +121,7 @@
    
    当前namespace中的 [角色] 实例：[实例列表]
    
-   建议发送消息：qq send [实例名] "[消息内容]"
+   建议发送消息：cliExtra send [实例名] "[消息内容]"
    ```
 
 3. **跨职能任务识别时**，提醒协作：
@@ -140,10 +140,10 @@
    ```
    这个变更影响多个角色，建议广播通知：
    
-   qq broadcast "[通知内容]" --namespace [目标namespace]
+   cliExtra broadcast "[通知内容]" --namespace [目标namespace]
    
    或者发送给所有相关实例：
-   qq broadcast "[通知内容]"
+   cliExtra broadcast "[通知内容]"
    ```
 
 ## 使用原则

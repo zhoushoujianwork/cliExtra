@@ -6,6 +6,91 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 
+# 恢复已停止的实例
+resume_instance() {
+    local instance_id="$1"
+    
+    echo "尝试恢复实例: $instance_id"
+    
+    # 查找实例信息
+    local instance_dir=$(find_instance_info_dir "$instance_id")
+    if [ -z "$instance_dir" ]; then
+        echo "错误: 未找到实例 $instance_id"
+        return 1
+    fi
+    
+    # 检查实例状态
+    local session_name="q_instance_$instance_id"
+    if tmux has-session -t "$session_name" 2>/dev/null; then
+        echo "实例 $instance_id 已在运行中"
+        echo "接管会话: tmux attach-session -t $session_name"
+        return 0
+    fi
+    
+    # 读取实例信息
+    local info_file="$instance_dir/info"
+    if [ ! -f "$info_file" ]; then
+        echo "错误: 实例信息文件不存在: $info_file"
+        return 1
+    fi
+    
+    # 解析实例信息
+    local project_path=$(grep "^PROJECT_DIR=" "$info_file" | cut -d'=' -f2- | tr -d '"')
+    local namespace=$(grep "^NAMESPACE=" "$info_file" | cut -d'=' -f2- | tr -d '"')
+    
+    if [ ! -d "$project_path" ]; then
+        echo "错误: 项目目录不存在: $project_path"
+        return 1
+    fi
+    
+    echo "恢复实例配置:"
+    echo "  实例ID: $instance_id"
+    echo "  项目目录: $project_path"
+    echo "  Namespace: $namespace"
+    
+    # 读取历史对话记录
+    local conversation_file="$WORK_DIR/namespaces/$namespace/conversations/instance_$instance_id.json"
+    local context_messages=""
+    
+    if [ -f "$conversation_file" ]; then
+        # 提取最近的对话作为上下文
+        local recent_messages=$(tail -n 10 "$conversation_file" | jq -r '.messages[]? | select(.role == "user" or .role == "assistant") | "\(.timestamp): \(.content)"' 2>/dev/null || echo "")
+        if [ -n "$recent_messages" ]; then
+            context_messages="根据历史对话记录，我们之前讨论了以下内容：\n$recent_messages\n\n请继续我们的对话。"
+        fi
+    fi
+    
+    # 重新启动实例
+    echo "重新启动 tmux 会话..."
+    
+    # 创建新的 tmux 会话
+    local log_file="$WORK_DIR/namespaces/$namespace/logs/instance_$instance_id.log"
+    
+    tmux new-session -d -s "$session_name" -c "$project_path"
+    
+    # 如果有历史上下文，发送给 Q
+    if [ -n "$context_messages" ]; then
+        echo "载入历史上下文..."
+        tmux send-keys -t "$session_name" "q chat" Enter
+        sleep 2
+        # 发送上下文消息
+        echo -e "$context_messages" | tmux send-keys -t "$session_name" -l
+        tmux send-keys -t "$session_name" Enter
+    else
+        # 直接启动 q chat
+        tmux send-keys -t "$session_name" "q chat" Enter
+    fi
+    
+    # 启用日志记录
+    tmux pipe-pane -t "$session_name" -o "cat >> '$log_file'"
+    
+    echo "✓ 实例 $instance_id 已恢复"
+    echo "接管会话: tmux attach-session -t $session_name"
+    echo "分离会话: 在会话中按 Ctrl+B, D"
+    
+    return 0
+}
+
 # 生成与目录相关的实例ID
 generate_instance_id() {
     local project_path="$1"
@@ -43,6 +128,7 @@ parse_start_args() {
     local project_path=""
     local role=""
     local namespace="default"
+    local context_instance=""
     
     # 解析参数
     while [[ $# -gt 0 ]]; do
@@ -57,6 +143,10 @@ parse_start_args() {
                 ;;
             --namespace|--ns)
                 namespace="$2"
+                shift 2
+                ;;
+            --context)
+                context_instance="$2"
                 shift 2
                 ;;
             -*)
@@ -74,6 +164,12 @@ parse_start_args() {
                 ;;
         esac
     done
+    
+    # 如果指定了 --context，标记为恢复模式
+    if [ -n "$context_instance" ]; then
+        echo "RESUME|$context_instance"
+        return 0
+    fi
     
     # 如果没有指定实例名字，生成一个
     if [ -z "$instance_name" ]; then
@@ -317,6 +413,13 @@ args_result=$(parse_start_args "$@")
 if [ $? -ne 0 ]; then
     echo "参数解析错误"
     exit 1
+fi
+
+# 检查是否为恢复模式
+if [[ "$args_result" == RESUME\|* ]]; then
+    context_instance=$(echo "$args_result" | cut -d'|' -f2)
+    resume_instance "$context_instance"
+    exit $?
 fi
 
 # 解析结果

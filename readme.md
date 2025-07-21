@@ -113,8 +113,12 @@ qq send myproject "你好，Q!"
 # 接管实例终端
 qq attach myproject
 
-# 停止实例
+# 停止实例（保留数据，可恢复）
 qq stop myproject
+
+# 恢复已停止的实例，载入历史上下文
+qq resume myproject
+qq start --context myproject  # 等效命令
 
 # 清理单个实例（停止并删除文件）
 qq clean myproject
