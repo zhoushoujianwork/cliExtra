@@ -27,15 +27,34 @@ load_config() {
 find_instance_project() {
     local instance_id="$1"
     
-    # 搜索当前目录
+    # 搜索当前目录 - 新的namespace结构
+    if [ -d ".cliExtra/namespaces" ]; then
+        for ns_dir in .cliExtra/namespaces/*; do
+            if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
+                echo "$(pwd)"
+                return 0
+            fi
+        done
+    fi
+    
+    # 搜索当前目录 - 旧的结构（向后兼容）
     if [ -d ".cliExtra/instances/instance_$instance_id" ]; then
         echo "$(pwd)"
         return 0
     fi
     
-    # 搜索全局项目目录
+    # 搜索全局项目目录 - 新结构
     if [ -d "$CLIEXTRA_HOME/projects" ]; then
         for project_dir in "$CLIEXTRA_HOME/projects"/*; do
+            if [ -d "$project_dir/.cliExtra/namespaces" ]; then
+                for ns_dir in "$project_dir/.cliExtra/namespaces"/*; do
+                    if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
+                        echo "$project_dir"
+                        return 0
+                    fi
+                done
+            fi
+            # 旧结构兼容
             if [ -d "$project_dir/.cliExtra/instances/instance_$instance_id" ]; then
                 echo "$project_dir"
                 return 0
@@ -43,14 +62,33 @@ find_instance_project() {
         done
     fi
     
-    # 搜索用户主目录
+    # 搜索用户主目录 - 新结构
+    if [ -d "$HOME/.cliExtra/namespaces" ]; then
+        for ns_dir in "$HOME/.cliExtra/namespaces"/*; do
+            if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
+                echo "$HOME"
+                return 0
+            fi
+        done
+    fi
+    
+    # 搜索用户主目录 - 旧结构
     if [ -d "$HOME/.cliExtra/instances/instance_$instance_id" ]; then
         echo "$HOME"
         return 0
     fi
     
-    # 搜索其他可能的位置
+    # 搜索其他可能的位置 - 新结构
     for search_dir in "$HOME" "$HOME/Projects" "$HOME/workspace" "$HOME/dev"; do
+        if [ -d "$search_dir/.cliExtra/namespaces" ]; then
+            for ns_dir in "$search_dir/.cliExtra/namespaces"/*; do
+                if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
+                    echo "$search_dir"
+                    return 0
+                fi
+            done
+        fi
+        # 旧结构兼容
         if [ -d "$search_dir/.cliExtra/instances/instance_$instance_id" ]; then
             echo "$search_dir"
             return 0

@@ -109,6 +109,39 @@ EOF
     echo "$target_dir"
 }
 
+# 更新namespace缓存
+update_namespace_cache() {
+    local cache_file="$1"
+    local instance_id="$2"
+    local action="$3"
+    local timestamp="$4"
+    local message="$5"
+    
+    # 使用jq更新缓存文件
+    if command -v jq >/dev/null 2>&1; then
+        local temp_file=$(mktemp)
+        jq --arg instance_id "$instance_id" \
+           --arg action "$action" \
+           --arg timestamp "$timestamp" \
+           --arg message "$message" \
+           '.instances[$instance_id] = {
+               "last_action": $action,
+               "last_update": $timestamp,
+               "status": (if $action == "started" then "running" elif $action == "stopped" then "stopped" else "unknown" end)
+           } |
+           if $message != "" then
+               .message_history += [{
+                   "timestamp": $timestamp,
+                   "instance_id": $instance_id,
+                   "action": $action,
+                   "message": $message
+               }]
+           else . end' "$cache_file" > "$temp_file" && mv "$temp_file" "$cache_file"
+    else
+        echo "警告: jq未安装，无法更新namespace缓存"
+    fi
+}
+
 # 安装默认工具到项目
 install_default_tools() {
     local project_dir="$1"
@@ -165,16 +198,46 @@ start_tmux_instance() {
     local namespace="$3"
     local session_name="q_instance_$instance_id"
     
-    # 使用项目的 .cliExtra 目录
+    # 使用项目的 .cliExtra 目录，按namespace组织
     local cliextra_dir="$project_dir/.cliExtra"
-    local session_dir="$cliextra_dir/instances/instance_$instance_id"
-    local log_file="$cliextra_dir/logs/instance_$instance_id.log"
+    local ns_dir="$cliextra_dir/namespaces/$namespace"
+    local session_dir="$ns_dir/instances/instance_$instance_id"
+    local log_file="$ns_dir/logs/instance_$instance_id.log"
+    local conversation_file="$ns_dir/conversations/instance_$instance_id.json"
+    local ns_cache_file="$ns_dir/namespace_cache.json"
+    
+    # 创建namespace目录结构
+    mkdir -p "$session_dir"
+    mkdir -p "$(dirname "$log_file")"
+    mkdir -p "$(dirname "$conversation_file")"
     
     echo "$(date): 启动tmux实例 $instance_id 在项目 $project_dir (namespace: $namespace)" >> "$log_file"
     
-    # 创建会话目录
-    mkdir -p "$session_dir"
-    mkdir -p "$(dirname "$log_file")"
+    # 初始化对话记录文件
+    if [[ ! -f "$conversation_file" ]]; then
+        cat > "$conversation_file" << EOF
+{
+  "instance_id": "$instance_id",
+  "namespace": "$namespace",
+  "project_dir": "$project_dir",
+  "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "conversations": []
+}
+EOF
+    fi
+    
+    # 初始化namespace缓存文件
+    if [[ ! -f "$ns_cache_file" ]]; then
+        cat > "$ns_cache_file" << EOF
+{
+  "namespace": "$namespace",
+  "project_dir": "$project_dir",
+  "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "instances": {},
+  "message_history": []
+}
+EOF
+    fi
     
     # 同步rules到项目目录
     sync_rules_to_project "$project_dir"
@@ -195,6 +258,7 @@ start_tmux_instance() {
     echo "会话名称: $session_name"
     echo "会话目录: $session_dir"
     echo "日志文件: $log_file"
+    echo "对话记录: $conversation_file"
     
     # 启动tmux会话，在项目目录中运行
     tmux new-session -d -s "$session_name" -c "$project_dir" "q chat --resume --trust-all-tools"
@@ -218,10 +282,15 @@ SESSION_NAME="$session_name"
 NAMESPACE="$namespace"
 STARTED_AT="$(date)"
 PID="$$"
+CONVERSATION_FILE="$conversation_file"
+NS_CACHE_FILE="$ns_cache_file"
 EOF
         
-        # 保存namespace信息
+        # 保存namespace信息（向后兼容）
         echo "$namespace" > "$session_dir/namespace"
+        
+        # 更新namespace缓存
+        update_namespace_cache "$ns_cache_file" "$instance_id" "started" "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
         
     else
         echo "✗ 实例 $instance_id 启动失败"

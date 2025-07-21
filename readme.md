@@ -175,6 +175,27 @@ cliExtra tools installed
 cliExtra tools add git --project /path/to/project
 ```
 
+### 对话记录和回放
+
+```bash
+# 查看可用的对话记录
+cliExtra replay list
+
+# 回放指定实例的对话记录
+cliExtra replay instance backend-api
+cliExtra replay instance frontend-dev --format json
+
+# 回放指定namespace的消息历史
+cliExtra replay namespace development
+cliExtra replay namespace backend --format timeline
+
+# 限制显示记录数量
+cliExtra replay instance backend-api --limit 10
+
+# 显示指定时间后的记录
+cliExtra replay namespace development --since "2025-01-20"
+```
+
 ### 实例协作
 
 ```bash
@@ -243,13 +264,22 @@ project/
 project/
 ├── .cliExtra/
 │   ├── config              # 项目配置
-│   ├── instances/          # 实例目录
-│   │   └── instance_123/   # 实例123的会话信息
-│   │       ├── tmux.log    # tmux会话日志
-│   │       ├── namespace   # 实例namespace信息
-│   │       └── info        # 实例详细信息
-│   └── logs/               # 日志目录
-│       └── instance_123.log # 实例123的日志
+│   └── namespaces/         # namespace目录（新结构）
+│       ├── default/        # default namespace
+│       │   ├── instances/  # 实例目录
+│       │   │   └── instance_123/
+│       │   │       ├── tmux.log    # tmux会话日志
+│       │   │       └── info        # 实例详细信息
+│       │   ├── logs/       # 实例日志目录
+│       │   │   └── instance_123.log
+│       │   ├── conversations/  # 对话记录目录
+│       │   │   └── instance_123.json
+│       │   └── namespace_cache.json  # namespace缓存
+│       └── frontend/       # frontend namespace
+│           ├── instances/
+│           ├── logs/
+│           ├── conversations/
+│           └── namespace_cache.json
 ├── .amazonq/
 │   └── rules/              # Amazon Q规则目录（自动同步）
 │       ├── frontend-engineer.md    # 前端工程师角色预设
@@ -267,6 +297,8 @@ project/
 - 每个项目都有独立的rules副本，确保项目间的隔离
 - rules文件包含协作感知能力和角色边界管理
 - 工具文件以 `tools_` 前缀命名，支持动态添加和移除
+- 新的namespace目录结构支持更好的实例组织和对话记录管理
+- 每个namespace都有独立的对话记录和消息历史缓存
 
 ## tmux操作
 

@@ -58,17 +58,34 @@ get_instance_namespace() {
     # 查找实例所在的项目目录
     local project_dir=$(find_instance_project "$instance_id")
     if [[ $? -eq 0 ]]; then
-        local instance_dir="$project_dir/.cliExtra/instances/instance_$instance_id"
-        local ns_file="$instance_dir/namespace"
-        
-        if [[ -f "$ns_file" ]]; then
-            cat "$ns_file"
-        else
-            echo "default"
+        # 首先尝试新的namespace目录结构
+        local namespaces_dir="$project_dir/.cliExtra/namespaces"
+        if [[ -d "$namespaces_dir" ]]; then
+            for ns_dir in "$namespaces_dir"/*; do
+                if [[ -d "$ns_dir" ]]; then
+                    local instance_dir="$ns_dir/instances/instance_$instance_id"
+                    if [[ -d "$instance_dir" ]]; then
+                        basename "$ns_dir"
+                        return 0
+                    fi
+                fi
+            done
         fi
-    else
-        echo "default"
+        
+        # 回退到旧的结构
+        local old_instance_dir="$project_dir/.cliExtra/instances/instance_$instance_id"
+        if [[ -d "$old_instance_dir" ]]; then
+            local ns_file="$old_instance_dir/namespace"
+            if [[ -f "$ns_file" ]]; then
+                cat "$ns_file"
+            else
+                echo "default"
+            fi
+            return 0
+        fi
     fi
+    
+    echo "default"
 }
 
 # 获取实例详细信息
