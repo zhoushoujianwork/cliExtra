@@ -53,9 +53,28 @@ get_install_dir() {
 check_dependencies() {
     echo -e "${BLUE}检查依赖...${NC}"
     
-    if ! command -v screen &> /dev/null; then
-        echo -e "${RED}错误: screen 未安装${NC}"
-        echo "请安装: brew install screen (macOS) 或 apt-get install screen (Linux)"
+    # 检查 Amazon Q CLI
+    if ! command -v q &> /dev/null; then
+        echo -e "${RED}错误: Amazon Q CLI 未安装${NC}"
+        echo -e "${YELLOW}请先安装并初始化 Amazon Q CLI:${NC}"
+        echo "1. 访问: https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html"
+        echo "2. 安装适合您系统的版本"
+        echo "3. 运行: q auth login"
+        echo "4. 验证: q --version"
+        exit 1
+    fi
+    
+    # 检查 Amazon Q CLI 是否已初始化
+    if ! q --version &> /dev/null; then
+        echo -e "${YELLOW}警告: Amazon Q CLI 可能未正确初始化${NC}"
+        echo -e "${YELLOW}如果遇到问题，请运行: q auth login${NC}"
+    else
+        echo -e "${GREEN}✓ Amazon Q CLI 已安装并可用${NC}"
+    fi
+    
+    if ! command -v tmux &> /dev/null; then
+        echo -e "${RED}错误: tmux 未安装${NC}"
+        echo "请安装: brew install tmux (macOS) 或 apt-get install tmux (Linux)"
         exit 1
     fi
     

@@ -1,6 +1,10 @@
 # cliExtra
 
-基于tmux的q CLI实例管理系统
+基于tmux的Amazon Q CLI实例管理系统
+
+> **前置要求**: 使用本工具前，请先安装并初始化 Amazon Q CLI。支持免费版本和 Pro 版本。
+> 
+> 📖 **安装指南**: [Amazon Q CLI 安装文档](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html)
 
 ## 功能特点
 
@@ -19,11 +23,28 @@
 
 ## 安装
 
+### 前置条件
+
+在安装 cliExtra 之前，请确保已经安装并初始化了 Amazon Q CLI：
+
+1. **安装 Amazon Q CLI**
+   - 访问 [Amazon Q CLI 安装文档](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html)
+   - 按照文档说明安装适合您系统的版本
+
+2. **初始化 Amazon Q CLI**
+   ```bash
+   # 初始化 Amazon Q CLI（免费版本或 Pro 版本）
+   q auth login
+   
+   # 验证安装
+   q --version
+   ```
+
 ### 快速安装
 
 ```bash
 # 克隆项目
-git clone <repository-url>
+git clone https://github.com/zhoushoujianwork/cliExtra.git
 cd cliExtra
 
 # 安装（会创建两个命令：cliExtra 和 qq）
@@ -39,9 +60,11 @@ cd cliExtra
 ```bash
 # 创建软链接
 sudo ln -sf /path/to/cliExtra/cliExtra.sh /usr/local/bin/cliExtra
+sudo ln -sf /path/to/cliExtra/cliExtra.sh /usr/local/bin/qq
 
 # 设置执行权限
 chmod +x /usr/local/bin/cliExtra
+chmod +x /usr/local/bin/qq
 ```
 
 ## 使用方法
@@ -374,10 +397,10 @@ sudo ln -sf /path/to/cliExtra/cliExtra.sh /usr/local/bin/qq
 
 ## 依赖
 
+- **Amazon Q CLI**: AI 助手核心（必需）
 - **tmux**: 会话管理
 - **Git**: 仓库克隆（可选）
 - **Bash**: 脚本执行
 
 ## 许可证
-
-[许可证信息]
+MIT License
