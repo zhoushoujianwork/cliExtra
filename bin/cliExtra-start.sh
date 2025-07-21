@@ -6,9 +6,35 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 
-# 生成随机实例ID
+# 生成与目录相关的实例ID
 generate_instance_id() {
-    echo "$(date +%s)_$$_$(shuf -i 1000-9999 -n 1 2>/dev/null || echo $RANDOM)"
+    local project_path="$1"
+    local target_dir=""
+    
+    # 确定目标目录
+    if [ -z "$project_path" ]; then
+        target_dir=$(pwd)
+    elif [[ "$project_path" == http*://* ]]; then
+        # Git URL 处理
+        local repo_name=$(basename "$project_path" .git)
+        target_dir="$repo_name"
+    else
+        # 本地路径处理
+        target_dir=$(basename "$(realpath "$project_path")")
+    fi
+    
+    # 获取目录名并清理特殊字符
+    local dir_name=$(basename "$target_dir" | sed 's/[^a-zA-Z0-9_-]/_/g' | tr '[:upper:]' '[:lower:]')
+    
+    # 如果目录名为空或只有特殊字符，使用默认名称
+    if [ -z "$dir_name" ] || [ "$dir_name" = "_" ]; then
+        dir_name="project"
+    fi
+    
+    # 生成带目录名的实例ID
+    local timestamp=$(date +%s)
+    local random_suffix=$(shuf -i 1000-9999 -n 1 2>/dev/null || echo $RANDOM)
+    echo "cliExtra_${dir_name}_${timestamp}_${random_suffix}"
 }
 
 # 解析命令行参数
@@ -51,7 +77,7 @@ parse_start_args() {
     
     # 如果没有指定实例名字，生成一个
     if [ -z "$instance_name" ]; then
-        instance_name=$(generate_instance_id)
+        instance_name=$(generate_instance_id "$project_path")
         echo "自动生成实例ID: $instance_name" >&2
     fi
     

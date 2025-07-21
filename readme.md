@@ -4,7 +4,7 @@
 
 ## 功能特点
 
-- **自动生成实例ID**: 支持自动生成随机实例ID，也可自定义实例名
+- **自动生成实例ID**: 支持自动生成与目录相关的实例ID（如：cliExtra_project_timestamp_random），也可自定义实例名
 - **统一工作目录管理**: 所有实例信息集中在系统工作目录，项目目录保持干净
 - **灵活启动**: 支持当前目录、指定目录或Git仓库克隆启动
 - **会话管理**: 基于tmux，支持会话保持和上下文管理
@@ -46,10 +46,10 @@ chmod +x /usr/local/bin/cliExtra
 
 ```bash
 # 自动生成实例ID（推荐）
-cliExtra start                    # 在当前目录启动
-cliExtra start ../                # 在上级目录启动
-cliExtra start /path/to/project   # 在指定目录启动
-cliExtra start https://github.com/user/repo.git  # 克隆并启动
+cliExtra start                    # 在当前目录启动 (如: cliExtra_myproject_1234567890_1234)
+cliExtra start ../                # 在上级目录启动 (如: cliExtra_parentdir_1234567890_5678)
+cliExtra start /path/to/project   # 在指定目录启动 (如: cliExtra_project_1234567890_9012)
+cliExtra start https://github.com/user/repo.git  # 克隆并启动 (如: cliExtra_repo_1234567890_3456)
 
 # 指定实例名字
 cliExtra start --name myproject   # 在当前目录启动，实例名为myproject
