@@ -26,9 +26,13 @@
 git clone <repository-url>
 cd cliExtra
 
-# 安装
+# 安装（会创建两个命令：cliExtra 和 qq）
 ./install.sh
 ```
+
+安装后可以使用两种命令：
+- `cliExtra` - 完整命令名
+- `qq` - 简化命令（推荐）
 
 ### 手动安装
 
@@ -46,174 +50,174 @@ chmod +x /usr/local/bin/cliExtra
 
 ```bash
 # 自动生成实例ID（推荐）
-cliExtra start                    # 在当前目录启动 (如: cliExtra_myproject_1234567890_1234)
-cliExtra start ../                # 在上级目录启动 (如: cliExtra_parentdir_1234567890_5678)
-cliExtra start /path/to/project   # 在指定目录启动 (如: cliExtra_project_1234567890_9012)
-cliExtra start https://github.com/user/repo.git  # 克隆并启动 (如: cliExtra_repo_1234567890_3456)
+qq start                    # 在当前目录启动 (如: cliExtra_myproject_1234567890_1234)
+qq start ../                # 在上级目录启动 (如: cliExtra_parentdir_1234567890_5678)
+qq start /path/to/project   # 在指定目录启动 (如: cliExtra_project_1234567890_9012)
+qq start https://github.com/user/repo.git  # 克隆并启动 (如: cliExtra_repo_1234567890_3456)
 
 # 指定实例名字
-cliExtra start --name myproject   # 在当前目录启动，实例名为myproject
-cliExtra start ../ --name test    # 在上级目录启动，实例名为test
+qq start --name myproject   # 在当前目录启动，实例名为myproject
+qq start ../ --name test    # 在上级目录启动，实例名为test
 
 # 应用角色预设
-cliExtra start --role frontend    # 启动并应用前端工程师角色
-cliExtra start --name backend --role backend  # 启动并应用后端工程师角色
+qq start --role frontend    # 启动并应用前端工程师角色
+qq start --name backend --role backend  # 启动并应用后端工程师角色
 ```
 
 ### 实例管理
 
 ```bash
 # 列出所有实例（简洁格式，每行一个实例ID）
-cliExtra list
+qq list
 
 # 列出所有实例（JSON格式，包含详细信息和namespace）
-cliExtra list --json
+qq list --json
 
 # 显示指定实例的详细信息（包含namespace）
-cliExtra list myinstance
+qq list myinstance
 
 # 显示指定实例的详细信息（JSON格式，包含namespace）
-cliExtra list myinstance --json
+qq list myinstance --json
 
 # 查看实例状态
-cliExtra status myproject
+qq status myproject
 
 # 发送消息到实例
-cliExtra send myproject "你好，Q!"
+qq send myproject "你好，Q!"
 
 # 接管实例终端
-cliExtra attach myproject
+qq attach myproject
 
 # 停止实例
-cliExtra stop myproject
+qq stop myproject
 
 # 清理单个实例（停止并删除文件）
-cliExtra clean myproject
+qq clean myproject
 
 # 清理所有实例
-cliExtra clean all
+qq clean all
 
 # 清理指定namespace中的所有实例
-cliExtra clean all --namespace frontend
+qq clean all --namespace frontend
 
 # 预览将要清理的实例（不实际执行）
-cliExtra clean all --dry-run
-cliExtra clean all --namespace backend --dry-run
+qq clean all --dry-run
+qq clean all --namespace backend --dry-run
 ```
 
 ### 角色预设管理
 
 ```bash
 # 列出所有可用角色
-cliExtra role list
+qq role list
 
 # 显示角色预设内容
-cliExtra role show frontend
-cliExtra role show           # 显示当前目录的角色（只显示角色名）
-cliExtra role show ./        # 显示指定目录的角色（只显示角色名）
+qq role show frontend
+qq role show           # 显示当前目录的角色（只显示角色名）
+qq role show ./        # 显示指定目录的角色（只显示角色名）
 
 # 应用角色预设到项目或实例
-cliExtra role apply frontend             # 当前目录应用前端工程师角色
-cliExtra role apply backend myproject    # 指定实例应用后端工程师角色
+qq role apply frontend             # 当前目录应用前端工程师角色
+qq role apply backend myproject    # 指定实例应用后端工程师角色
 
 # 强制应用（不需要确认，适合自动化脚本）
-cliExtra role apply devops -f            # 强制应用运维工程师角色
-cliExtra role apply frontend myproject -f
-cliExtra role apply backend -f myproject # 参数顺序灵活
+qq role apply devops -f            # 强制应用运维工程师角色
+qq role apply frontend myproject -f
+qq role apply backend -f myproject # 参数顺序灵活
 
 # 移除项目/实例中的角色预设
-cliExtra role remove
-cliExtra role remove myproject
+qq role remove
+qq role remove myproject
 ```
 
 ### Namespace管理
 
 ```bash
 # 创建namespace
-cliExtra ns create frontend
-cliExtra ns create backend
-cliExtra ns create devops
+qq ns create frontend
+qq ns create backend
+qq ns create devops
 
 # 查看namespace
-cliExtra ns show                    # 显示所有namespace
-cliExtra ns show frontend           # 显示frontend namespace详情
-cliExtra ns show --json             # JSON格式输出
+qq ns show                    # 显示所有namespace
+qq ns show frontend           # 显示frontend namespace详情
+qq ns show --json             # JSON格式输出
 
 # 删除namespace
-cliExtra ns delete frontend         # 删除空的namespace
-cliExtra ns delete backend --force  # 强制删除（停止其中的实例）
+qq ns delete frontend         # 删除空的namespace
+qq ns delete backend --force  # 强制删除（停止其中的实例）
 
 # 启动实例到指定namespace
-cliExtra start --namespace frontend
-cliExtra start --name api --ns backend
+qq start --namespace frontend
+qq start --name api --ns backend
 
 # 修改实例的namespace
-cliExtra set-ns myinstance backend  # 将实例移动到backend namespace
+qq set-ns myinstance backend  # 将实例移动到backend namespace
 ```
 
 ### 工具管理
 
 ```bash
 # 查看所有可用工具
-cliExtra tools list
+qq tools list
 
 # 显示工具详细信息
-cliExtra tools show git
-cliExtra tools show dingtalk
+qq tools show git
+qq tools show dingtalk
 
 # 添加工具到当前项目
-cliExtra tools add git              # 添加git工具
-cliExtra tools add dingtalk         # 添加钉钉工具
+qq tools add git              # 添加git工具
+qq tools add dingtalk         # 添加钉钉工具
 
 # 移除项目中的工具
-cliExtra tools remove git           # 移除git工具
-cliExtra tools remove dingtalk      # 移除钉钉工具
+qq tools remove git           # 移除git工具
+qq tools remove dingtalk      # 移除钉钉工具
 
 # 查看当前项目已安装的工具
-cliExtra tools installed
+qq tools installed
 
 # 指定项目路径操作工具
-cliExtra tools add git --project /path/to/project
+qq tools add git --project /path/to/project
 ```
 
 ### 对话记录和回放
 
 ```bash
 # 查看可用的对话记录
-cliExtra replay list
+qq replay list
 
 # 回放指定实例的对话记录
-cliExtra replay instance backend-api
-cliExtra replay instance frontend-dev --format json
+qq replay instance backend-api
+qq replay instance frontend-dev --format json
 
 # 回放指定namespace的消息历史
-cliExtra replay namespace development
-cliExtra replay namespace backend --format timeline
+qq replay namespace development
+qq replay namespace backend --format timeline
 
 # 限制显示记录数量
-cliExtra replay instance backend-api --limit 10
+qq replay instance backend-api --limit 10
 
 # 显示指定时间后的记录
-cliExtra replay namespace development --since "2025-01-20"
+qq replay namespace development --since "2025-01-20"
 ```
 
 ### 实例协作
 
 ```bash
 # 发送消息到指定实例
-cliExtra send backend-api "API开发完成，请进行前端集成"
+qq send backend-api "API开发完成，请进行前端集成"
 
 # 广播消息到所有实例
-cliExtra broadcast "系统维护通知：今晚22:00-24:00进行系统升级"
+qq broadcast "系统维护通知：今晚22:00-24:00进行系统升级"
 
 # 广播到指定namespace
-cliExtra broadcast "前端组件库更新" --namespace frontend
+qq broadcast "前端组件库更新" --namespace frontend
 
 # 排除特定实例的广播
-cliExtra broadcast "测试环境重启" --exclude self
+qq broadcast "测试环境重启" --exclude self
 
 # 预览广播目标（不实际发送）
-cliExtra broadcast "部署通知" --dry-run
+qq broadcast "部署通知" --dry-run
 ```
 
 **注意**: 每个项目建议只保留一个角色预设，多个角色可能导致意图识别混乱。应用新角色时会自动移除现有角色。
@@ -231,11 +235,11 @@ cliExtra broadcast "部署通知" --dry-run
 ```bash
 # 后端工程师完成API开发后，AI会主动询问：
 # "API开发已完成，是否需要通知前端工程师进行集成？"
-# 建议命令：cliExtra send frontend-dev "API接口已完成，请进行前端集成测试"
+# 建议命令：qq send frontend-dev "API接口已完成，请进行前端集成测试"
 
 # 运维工程师完成部署后，AI会建议：
 # "部署环境已准备完成，建议广播通知相关开发团队"
-# 建议命令：cliExtra broadcast "生产环境部署完成，可以开始发布" --namespace backend
+# 建议命令：qq broadcast "生产环境部署完成，可以开始发布" --namespace backend
 ```
 
 ### 角色预设结构
@@ -339,16 +343,17 @@ cliExtra 采用工作目录统一管理的方式，所有实例信息都存储�
 
 ```bash
 # 使用卸载脚本
-./uninstall.sh
+./install.sh uninstall
 
 # 或手动删除软链接
 sudo rm -f /usr/local/bin/cliExtra
+sudo rm -f /usr/local/bin/qq
 ```
 
 ## 故障排除
 
 ### 命令不可用
-如果安装后 `cliExtra` 命令不可用：
+如果安装后 `qq` 或 `cliExtra` 命令不可用：
 1. 检查PATH环境变量是否包含安装目录
 2. 运行 `source ~/.zshrc` 或 `source ~/.bashrc`
 3. 重新打开终端
@@ -362,8 +367,9 @@ sudo ./install.sh
 ### 软链接问题
 如果软链接有问题：
 ```bash
-sudo rm -f /usr/local/bin/cliExtra
+sudo rm -f /usr/local/bin/cliExtra /usr/local/bin/qq
 sudo ln -sf /path/to/cliExtra/cliExtra.sh /usr/local/bin/cliExtra
+sudo ln -sf /path/to/cliExtra/cliExtra.sh /usr/local/bin/qq
 ```
 
 ## 依赖

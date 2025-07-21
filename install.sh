@@ -89,18 +89,27 @@ create_symlink() {
     
     # 删除可能存在的旧链接
     if [ -L "$install_dir/cliExtra" ]; then
-        echo -e "${YELLOW}删除旧链接...${NC}"
+        echo -e "${YELLOW}删除旧链接 cliExtra...${NC}"
         rm -f "$install_dir/cliExtra"
+    fi
+    
+    if [ -L "$install_dir/qq" ]; then
+        echo -e "${YELLOW}删除旧链接 qq...${NC}"
+        rm -f "$install_dir/qq"
     fi
     
     # 创建软链接
     echo -e "${YELLOW}创建软链接...${NC}"
     ln -sf "$SCRIPT_DIR/cliExtra.sh" "$install_dir/cliExtra"
+    ln -sf "$SCRIPT_DIR/cliExtra.sh" "$install_dir/qq"
     
     # 设置执行权限
     chmod +x "$install_dir/cliExtra"
+    chmod +x "$install_dir/qq"
     
     echo -e "${GREEN}✓ 软链接创建完成${NC}"
+    echo -e "${GREEN}  - cliExtra (完整命令)${NC}"
+    echo -e "${GREEN}  - qq (简化命令)${NC}"
 }
 
 # 更新PATH环境变量
@@ -152,13 +161,20 @@ show_install_info() {
     echo -e "${GREEN}=== cliExtra 安装完成 ===${NC}"
     echo ""
     echo -e "${BLUE}安装位置:${NC}"
-    echo "  软链接: $install_dir/cliExtra"
+    echo "  完整命令: $install_dir/cliExtra"
+    echo "  简化命令: $install_dir/qq"
     echo "  实际位置: $SCRIPT_DIR/cliExtra.sh"
     echo ""
-    echo -e "${BLUE}使用方法:${NC}"
-    echo "  cliExtra config"
-    echo "  cliExtra start 123"
-    echo "  cliExtra monitor 123"
+    echo -e "${BLUE}使用方法 (两种命令等效):${NC}"
+    echo "  cliExtra start    或  qq start"
+    echo "  cliExtra list     或  qq list"
+    echo "  cliExtra clean    或  qq clean"
+    echo "  cliExtra help     或  qq help"
+    echo ""
+    echo -e "${BLUE}推荐使用简化命令:${NC}"
+    echo "  qq start --name myproject"
+    echo "  qq send myproject 'Hello!'"
+    echo "  qq attach myproject"
     echo ""
     echo -e "${BLUE}如果命令不可用，请运行:${NC}"
     echo "  source ~/.zshrc  # 或 source ~/.bashrc"
@@ -171,10 +187,21 @@ uninstall() {
     
     echo -e "${YELLOW}卸载 cliExtra...${NC}"
     
+    local removed=false
+    
     if [ -L "$install_dir/cliExtra" ]; then
         rm -f "$install_dir/cliExtra"
-        echo -e "${GREEN}✓ 软链接已删除${NC}"
-    else
+        echo -e "${GREEN}✓ cliExtra 软链接已删除${NC}"
+        removed=true
+    fi
+    
+    if [ -L "$install_dir/qq" ]; then
+        rm -f "$install_dir/qq"
+        echo -e "${GREEN}✓ qq 软链接已删除${NC}"
+        removed=true
+    fi
+    
+    if [ "$removed" = false ]; then
         echo -e "${YELLOW}未找到软链接${NC}"
     fi
     
