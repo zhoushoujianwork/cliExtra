@@ -104,8 +104,8 @@ EOF
     echo "$target_dir"
 }
 
-# 启动Screen中的q CLI实例
-start_screen_instance() {
+# 启动tmux中的q CLI实例
+start_tmux_instance() {
     local instance_id="$1"
     local project_dir="$2"
     local session_name="q_instance_$instance_id"
@@ -115,43 +115,38 @@ start_screen_instance() {
     local session_dir="$cliextra_dir/instances/instance_$instance_id"
     local log_file="$cliextra_dir/logs/instance_$instance_id.log"
     
-    echo "$(date): 启动Screen实例 $instance_id 在项目 $project_dir" >> "$log_file"
+    echo "$(date): 启动tmux实例 $instance_id 在项目 $project_dir" >> "$log_file"
     
     # 创建会话目录
     mkdir -p "$session_dir"
     mkdir -p "$(dirname "$log_file")"
     
     # 检查实例是否已经在运行
-    if screen -list | grep -q "$session_name"; then
+    if tmux has-session -t "$session_name" 2>/dev/null; then
         echo "实例 $instance_id 已经在运行"
-        echo "使用 'screen -r $session_name' 接管会话"
+        echo "使用 'tmux attach-session -t $session_name' 接管会话"
         return
     fi
     
-    echo "启动Screen q CLI实例 $instance_id"
+    echo "启动tmux q CLI实例 $instance_id"
     echo "项目目录: $project_dir"
     echo "会话名称: $session_name"
     echo "会话目录: $session_dir"
     echo "日志文件: $log_file"
     
-    # 启动screen会话，在项目目录中运行
-    screen -dmS "$session_name" bash -c "
-        cd '$project_dir'
-        exec q chat --resume --trust-all-tools
-    "
+    # 启动tmux会话，在项目目录中运行
+    tmux new-session -d -s "$session_name" -c "$project_dir" "q chat --resume --trust-all-tools"
     
-    # 启用screen内置日志，使用flush模式确保实时输出
-    screen -S "$session_name" -X logfile "$session_dir/screen.log"
-    screen -S "$session_name" -X logfile flush 1
-    screen -S "$session_name" -X log on
+    # 启用tmux日志记录
+    tmux pipe-pane -t "$session_name" -o "cat >> '$session_dir/tmux.log'"
     
     # 等待一下确保会话启动
     sleep 3
     
-    if screen -list | grep -q "$session_name"; then
+    if tmux has-session -t "$session_name" 2>/dev/null; then
         echo "✓ 实例 $instance_id 已启动"
-        echo "接管会话: screen -r $session_name"
-        echo "分离会话: 在会话中按 Ctrl+A, D"
+        echo "接管会话: tmux attach-session -t $session_name"
+        echo "分离会话: 在会话中按 Ctrl+B, D"
         
         # 保存实例信息
         cat > "$session_dir/info" << EOF
@@ -191,4 +186,4 @@ if [ -n "$role" ]; then
 fi
 
 # 启动实例
-start_screen_instance "$instance_id" "$project_dir" 
+start_tmux_instance "$instance_id" "$project_dir" 

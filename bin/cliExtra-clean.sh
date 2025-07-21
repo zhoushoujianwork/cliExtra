@@ -6,20 +6,19 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 
-# 停止Screen实例
-stop_screen_instance() {
+# 停止tmux实例
+stop_tmux_instance() {
     local instance_id="$1"
     local session_name="q_instance_$instance_id"
     
-    if screen -list | grep -q "$session_name"; then
+    if tmux has-session -t "$session_name" 2>/dev/null; then
         # 发送退出命令
-        screen -S "$session_name" -X stuff "exit"
-        screen -S "$session_name" -X stuff $'\015'
+        tmux send-keys -t "$session_name" "exit" Enter
         sleep 1
         
         # 如果还在运行，强制终止
-        if screen -list | grep -q "$session_name"; then
-            screen -S "$session_name" -X quit
+        if tmux has-session -t "$session_name" 2>/dev/null; then
+            tmux kill-session -t "$session_name"
         fi
         
         echo "✓ 实例 $instance_id 已停止"
@@ -36,7 +35,7 @@ clean_single_instance() {
     echo "清理实例 $instance_id..."
     
     # 停止实例
-    stop_screen_instance "$instance_id"
+    stop_tmux_instance "$instance_id"
     
     # 查找并清理项目目录中的实例文件
     local project_dir=$(find_instance_project "$instance_id")
@@ -63,21 +62,21 @@ clean_single_instance() {
     fi
 }
 
-# 清理所有Screen实例
-clean_all_screen() {
-    echo "清理所有Screen q CLI实例..."
+# 清理所有tmux实例
+clean_all_tmux() {
+    echo "清理所有tmux q CLI实例..."
     
     local cleaned=false
-    while IFS= read -r line; do
-        if [[ "$line" == *"q_instance_"* ]]; then
-            session_info=$(echo "$line" | grep -o 'q_instance_[^[:space:]]*')
+    while IFS= read -r session_line; do
+        if [[ "$session_line" == q_instance_* ]]; then
+            session_info=$(echo "$session_line" | cut -d: -f1)
             instance_id=$(echo "$session_info" | sed 's/q_instance_//')
             
             echo "停止实例 $instance_id..."
-            stop_screen_instance "$instance_id"
+            stop_tmux_instance "$instance_id"
             cleaned=true
         fi
-    done < <(screen -list 2>/dev/null)
+    done < <(tmux list-sessions -F "#{session_name}" 2>/dev/null)
     
     if [ "$cleaned" = true ]; then
         echo "✓ 所有实例已清理"
@@ -88,7 +87,7 @@ clean_all_screen() {
 
 # 主逻辑
 if [ "$1" = "all" ]; then
-    clean_all_screen
+    clean_all_tmux
 elif [ -n "$1" ]; then
     clean_single_instance "$1"
 else

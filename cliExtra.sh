@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # cliExtra - 主控制脚本
-# 基于Screen的q CLI实例管理系统
+# 基于tmux的q CLI实例管理系统
 
 # 获取脚本的实际目录（处理软链接）
 SCRIPT_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")" && pwd)"
@@ -10,7 +10,7 @@ SCRIPT_NAME="cliExtra"
 # 显示帮助
 show_help() {
     echo ""
-    echo "=== cliExtra - 基于Screen的q CLI实例管理系统 ==="
+    echo "=== cliExtra - 基于tmux的q CLI实例管理系统 ==="
     echo "用法:"
     echo "  $0 config                    - 配置全局设置"
     echo "  $0 start [path] [--name <name>] - 启动实例"
@@ -46,10 +46,10 @@ show_help() {
     echo "  $0 role list                 # 列出所有可用角色"
     echo "  $0 role apply frontend       # 应用前端工程师角色到当前项目"
     echo ""
-    echo "Screen操作:"
-    echo "  接管会话: screen -r q_instance_<id>"
-    echo "  分离会话: 在会话中按 Ctrl+A, D"
-    echo "  查看所有: screen -list"
+    echo "tmux操作:"
+    echo "  接管会话: tmux attach-session -t q_instance_<id>"
+    echo "  分离会话: 在会话中按 Ctrl+B, D"
+    echo "  查看所有: tmux list-sessions"
     echo ""
     echo "特点:"
     echo "  - 支持自动生成实例ID"

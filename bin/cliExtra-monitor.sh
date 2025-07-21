@@ -6,12 +6,12 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 
-# 监控Screen实例输出
-monitor_screen_instance() {
+# 监控tmux实例输出
+monitor_tmux_instance() {
     local instance_id="$1"
     local session_name="q_instance_$instance_id"
     
-    if ! screen -list | grep -q "$session_name"; then
+    if ! tmux has-session -t "$session_name" 2>/dev/null; then
         echo "✗ 实例 $instance_id 不存在或未运行"
         echo "请先启动实例: cliExtra start $instance_id"
         return 1
@@ -20,24 +20,39 @@ monitor_screen_instance() {
     echo "正在监控实例 $instance_id..."
     echo "按 Ctrl+C 停止监控"
     
-    # 监控screen会话的日志
-    screen -S "$session_name" -X logfile /tmp/screen_monitor_$$.log
-    screen -S "$session_name" -X logfile flush 1
-    screen -S "$session_name" -X log on
-    
-    # 实时显示日志
-    tail -f /tmp/screen_monitor_$$.log 2>/dev/null &
-    local tail_pid=$!
-    
-    # 等待用户中断
-    trap "kill $tail_pid 2>/dev/null; rm -f /tmp/screen_monitor_$$.log; exit" INT
-    
-    wait $tail_pid
+    # 查找实例的项目目录和日志文件
+    local project_dir=$(find_instance_project "$instance_id")
+    if [ $? -eq 0 ]; then
+        local session_dir="$project_dir/.cliExtra/instances/instance_$instance_id"
+        local log_file="$session_dir/tmux.log"
+        
+        if [ -f "$log_file" ]; then
+            # 实时显示现有日志
+            tail -f "$log_file" 2>/dev/null &
+            local tail_pid=$!
+            
+            # 等待用户中断
+            trap "kill $tail_pid 2>/dev/null; exit" INT
+            
+            wait $tail_pid
+        else
+            echo "日志文件不存在: $log_file"
+            echo "尝试直接监控tmux会话..."
+            
+            # 直接监控tmux会话（需要用户手动接管）
+            echo "请使用以下命令接管会话进行监控:"
+            echo "tmux attach-session -t $session_name"
+        fi
+    else
+        echo "无法找到实例 $instance_id 的项目目录"
+        echo "请使用以下命令接管会话进行监控:"
+        echo "tmux attach-session -t $session_name"
+    fi
 }
 
 # 主逻辑
 if [ -n "$1" ]; then
-    monitor_screen_instance "$1"
+    monitor_tmux_instance "$1"
 else
     echo "用法: cliExtra-monitor.sh <instance_id>"
     echo "示例: cliExtra-monitor.sh myproject"

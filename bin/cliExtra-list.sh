@@ -99,19 +99,21 @@ get_instance_details() {
         done
     fi
     
-    # 获取Screen会话信息
+    # 获取tmux会话信息
     local session_info=""
     local status="Not Running"
     local session_name="q_instance_$instance_id"
     
-    while IFS= read -r line; do
-        if [[ "$line" == *"q_instance_$instance_id"* ]]; then
-            session_info=$(echo "$line" | grep -o 'q_instance_[^[:space:]]*')
-            status=$(echo "$line" | grep -o '(Attached)\|(Detached)' || echo "(Unknown)")
-            status=$(echo "$status" | sed 's/[()]//g')
-            break
+    if tmux has-session -t "$session_name" 2>/dev/null; then
+        session_info="$session_name"
+        # 检查会话是否有客户端连接
+        local client_count=$(tmux list-clients -t "$session_name" 2>/dev/null | wc -l)
+        if [ "$client_count" -gt 0 ]; then
+            status="Attached"
+        else
+            status="Detached"
         fi
-    done < <(screen -list 2>/dev/null)
+    fi
     
     # 获取日志文件大小和最后修改时间
     local log_size="0"
@@ -134,20 +136,25 @@ get_all_instances() {
     local instances=()
     local instance_data=()
     
-    while IFS= read -r line; do
-        if [[ "$line" == *"q_instance_"* ]]; then
+    # 获取所有tmux会话
+    while IFS= read -r session_line; do
+        if [[ "$session_line" == q_instance_* ]]; then
             # 提取实例信息
-            session_info=$(echo "$line" | grep -o 'q_instance_[^[:space:]]*')
+            session_info=$(echo "$session_line" | cut -d: -f1)
             instance_id=$(echo "$session_info" | sed 's/q_instance_//')
-            status=$(echo "$line" | grep -o '(Attached)\|(Detached)' || echo "(Unknown)")
             
-            # 清理状态信息
-            status=$(echo "$status" | sed 's/[()]//g')
+            # 检查会话状态
+            local client_count=$(tmux list-clients -t "$session_info" 2>/dev/null | wc -l)
+            if [ "$client_count" -gt 0 ]; then
+                status="Attached"
+            else
+                status="Detached"
+            fi
             
             instances+=("$instance_id")
             instance_data+=("$instance_id:$status:$session_info")
         fi
-    done < <(screen -list 2>/dev/null)
+    done < <(tmux list-sessions -F "#{session_name}" 2>/dev/null)
     
     # 输出结果
     if [ "$JSON_OUTPUT" = true ]; then
@@ -192,7 +199,7 @@ output_json() {
         echo -n "\"id\": \"$instance_id\", "
         echo -n "\"status\": \"$status\", "
         echo -n "\"session\": \"$session_info\", "
-        echo -n "\"attach_command\": \"screen -r q_instance_$instance_id\""
+        echo -n "\"attach_command\": \"tmux attach-session -t q_instance_$instance_id\""
         echo -n "}"
     done
     
@@ -228,7 +235,7 @@ output_instance_details() {
     
     echo ""
     echo "操作命令:"
-    echo "  接管会话: screen -r q_instance_$instance_id"
+    echo "  接管会话: tmux attach-session -t q_instance_$instance_id"
     echo "  发送消息: cliExtra send $instance_id \"消息内容\""
     echo "  查看日志: cliExtra logs $instance_id"
     echo "  停止实例: cliExtra stop $instance_id"
@@ -272,7 +279,7 @@ output_instance_json() {
     echo "    \"recent_logs\": \"$recent_logs\""
     echo "  },"
     echo "  \"commands\": {"
-    echo "    \"attach\": \"screen -r q_instance_$instance_id\","
+    echo "    \"attach\": \"tmux attach-session -t q_instance_$instance_id\","
     echo "    \"send\": \"cliExtra send $instance_id\","
     echo "    \"logs\": \"cliExtra logs $instance_id\","
     echo "    \"stop\": \"cliExtra stop $instance_id\","

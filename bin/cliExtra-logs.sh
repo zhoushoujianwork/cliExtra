@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 
 # 查看实例日志
-view_screen_logs() {
+view_instance_logs() {
     local instance_id="$1"
     local lines="${2:-50}"
     
@@ -32,7 +32,7 @@ view_screen_logs() {
 
 # 主逻辑
 if [ -n "$1" ]; then
-    view_screen_logs "$1" "$2"
+    view_instance_logs "$1" "$2"
 else
     echo "用法: cliExtra-logs.sh <instance_id> [lines]"
     echo "示例: cliExtra-logs.sh myproject 20"

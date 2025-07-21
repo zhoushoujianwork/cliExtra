@@ -1,13 +1,13 @@
 # cliExtra
 
-基于Screen的q CLI实例管理系统
+基于tmux的q CLI实例管理系统
 
 ## 功能特点
 
 - **自动生成实例ID**: 支持自动生成随机实例ID，也可自定义实例名
 - **项目级管理**: 每个项目有自己的 `.cliExtra` 目录，状态和日志独立管理
 - **灵活启动**: 支持当前目录、指定目录或Git仓库克隆启动
-- **会话管理**: 基于GNU Screen，支持会话保持和上下文管理
+- **会话管理**: 基于tmux，支持会话保持和上下文管理
 - **实时监控**: 支持实时监控实例输出和日志查看
 - **消息发送**: 可以向运行中的实例发送消息
 - **单个实例清理**: 支持停止和清理单个实例
@@ -152,11 +152,11 @@ project/
 └── ... (项目文件)
 ```
 
-## Screen操作
+## tmux操作
 
-- **接管会话**: `screen -r q_instance_<id>`
-- **分离会话**: 在会话中按 `Ctrl+A, D`
-- **查看所有**: `screen -list`
+- **接管会话**: `tmux attach-session -t q_instance_<id>`
+- **分离会话**: 在会话中按 `Ctrl+B, D`
+- **查看所有**: `tmux list-sessions`
 
 ## 卸载
 
@@ -191,7 +191,7 @@ sudo ln -sf /path/to/cliExtra/cliExtra.sh /usr/local/bin/cliExtra
 
 ## 依赖
 
-- **GNU Screen**: 会话管理
+- **tmux**: 会话管理
 - **Git**: 仓库克隆（可选）
 - **Bash**: 脚本执行
 

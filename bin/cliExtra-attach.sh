@@ -6,22 +6,22 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 
-# 接管Screen实例
+# 接管tmux实例
 attach_to_instance() {
     local instance_id="$1"
     local session_name="q_instance_$instance_id"
     
-    if ! screen -list | grep -q "$session_name"; then
+    if ! tmux has-session -t "$session_name" 2>/dev/null; then
         echo "✗ 实例 $instance_id 不存在或未运行"
         echo "请先启动实例: cliExtra start $instance_id"
         return 1
     fi
     
     echo "正在接管实例 $instance_id..."
-    echo "提示: 按 Ctrl+A, D 可以分离会话但保持运行"
+    echo "提示: 按 Ctrl+B, D 可以分离会话但保持运行"
     
-    # 接管screen会话
-    screen -r "$session_name"
+    # 接管tmux会话
+    tmux attach-session -t "$session_name"
 }
 
 # 主逻辑
