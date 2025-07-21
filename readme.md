@@ -147,6 +147,7 @@ project/
 │   ├── config              # 项目配置
 │   ├── instances/          # 实例目录
 │   │   └── instance_123/   # 实例123的会话信息
+│   │       └── tmux.log    # tmux会话日志
 │   └── logs/               # 日志目录
 │       └── instance_123.log # 实例123的日志
 └── ... (项目文件)
