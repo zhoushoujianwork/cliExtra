@@ -12,17 +12,18 @@ show_help() {
     echo ""
     echo "命令:"
     echo "  list                     列出所有可用工具"
-    echo "  add <tool_name>          添加工具到当前项目"
+    echo "  add <tool_name>          添加工具到当前项目（自动覆盖已存在的工具）"
     echo "  remove <tool_name>       从当前项目移除工具"
     echo "  show <tool_name>         显示工具详细信息"
     echo "  installed                显示当前项目已安装的工具"
     echo ""
     echo "选项:"
     echo "  --project <path>         指定项目路径（默认当前目录）"
+    echo "  -f, --force              强制覆盖（add命令默认行为）"
     echo ""
     echo "示例:"
     echo "  cliExtra tools list                    # 列出所有可用工具"
-    echo "  cliExtra tools add git                 # 添加git工具到当前项目"
+    echo "  cliExtra tools add git                 # 添加git工具到当前项目（覆盖已存在的）"
     echo "  cliExtra tools add dingtalk            # 添加钉钉工具到当前项目"
     echo "  cliExtra tools remove git              # 从当前项目移除git工具"
     echo "  cliExtra tools show git                # 显示git工具详细信息"
@@ -112,12 +113,11 @@ add_tool_to_project() {
     
     # 检查是否已经安装
     if [[ -f "$target_tool_file" ]]; then
-        echo "工具 '$tool_name' 已经安装在项目中"
-        echo "文件位置: $target_tool_file"
-        return 0
+        echo "工具 '$tool_name' 已存在，正在覆盖..."
+        echo "原文件位置: $target_tool_file"
     fi
     
-    # 复制工具文件
+    # 复制工具文件（覆盖已存在的文件）
     if cp "$source_tool_file" "$target_tool_file"; then
         echo "✓ 工具 '$tool_name' 已添加到项目"
         echo "文件位置: $target_tool_file"

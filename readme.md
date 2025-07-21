@@ -194,7 +194,7 @@ qq tools list
 qq tools show git
 qq tools show dingtalk
 
-# 添加工具到当前项目
+# 添加工具到当前项目（自动覆盖已存在的工具）
 qq tools add git              # 添加git工具
 qq tools add dingtalk         # 添加钉钉工具
 
@@ -208,6 +208,8 @@ qq tools installed
 # 指定项目路径操作工具
 qq tools add git --project /path/to/project
 ```
+
+**注意**: `qq tools add` 命令会自动覆盖已存在的同名工具，确保使用最新版本的工具配置。
 
 ### 对话记录和回放
 
