@@ -51,6 +51,26 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# 获取实例的namespace
+get_instance_namespace() {
+    local instance_id="$1"
+    
+    # 查找实例所在的项目目录
+    local project_dir=$(find_instance_project "$instance_id")
+    if [[ $? -eq 0 ]]; then
+        local instance_dir="$project_dir/.cliExtra/instances/instance_$instance_id"
+        local ns_file="$instance_dir/namespace"
+        
+        if [[ -f "$ns_file" ]]; then
+            cat "$ns_file"
+        else
+            echo "default"
+        fi
+    else
+        echo "default"
+    fi
+}
+
 # 获取实例详细信息
 get_instance_details() {
     local instance_id="$1"
@@ -123,11 +143,14 @@ get_instance_details() {
         log_modified=$(stat -f%Sm "$log_file" 2>/dev/null || echo "Unknown")
     fi
     
+    # 获取namespace信息
+    local namespace=$(get_instance_namespace "$instance_id")
+    
     # 输出详细信息
     if [ "$JSON_OUTPUT" = true ]; then
-        output_instance_json "$instance_id" "$status" "$session_info" "$project_dir" "$log_file" "$log_size" "$log_modified" "$instance_dir"
+        output_instance_json "$instance_id" "$status" "$session_info" "$project_dir" "$log_file" "$log_size" "$log_modified" "$instance_dir" "$namespace"
     else
-        output_instance_details "$instance_id" "$status" "$session_info" "$project_dir" "$log_file" "$log_size" "$log_modified" "$instance_dir"
+        output_instance_details "$instance_id" "$status" "$session_info" "$project_dir" "$log_file" "$log_size" "$log_modified" "$instance_dir" "$namespace"
     fi
 }
 
@@ -151,8 +174,11 @@ get_all_instances() {
                 status="Detached"
             fi
             
+            # 获取namespace信息
+            local namespace=$(get_instance_namespace "$instance_id")
+            
             instances+=("$instance_id")
-            instance_data+=("$instance_id:$status:$session_info")
+            instance_data+=("$instance_id:$status:$session_info:$namespace")
         fi
     done < <(tmux list-sessions -F "#{session_name}" 2>/dev/null)
     
@@ -187,7 +213,7 @@ output_json() {
     
     local first=true
     for data in "${instance_data[@]}"; do
-        IFS=':' read -r instance_id status session_info <<< "$data"
+        IFS=':' read -r instance_id status session_info namespace <<< "$data"
         
         if [ "$first" = true ]; then
             first=false
@@ -199,6 +225,7 @@ output_json() {
         echo -n "\"id\": \"$instance_id\", "
         echo -n "\"status\": \"$status\", "
         echo -n "\"session\": \"$session_info\", "
+        echo -n "\"namespace\": \"$namespace\", "
         echo -n "\"attach_command\": \"tmux attach-session -t q_instance_$instance_id\""
         echo -n "}"
     done
@@ -219,10 +246,12 @@ output_instance_details() {
     local log_size="$6"
     local log_modified="$7"
     local instance_dir="$8"
+    local namespace="$9"
     
     echo "=== 实例详细信息 ==="
     echo "实例ID: $instance_id"
     echo "状态: $status"
+    echo "Namespace: $namespace"
     echo "会话名称: ${session_info:-q_instance_$instance_id}"
     echo "项目目录: ${project_dir:-"未找到"}"
     echo "实例目录: ${instance_dir:-"未找到"}"
@@ -285,6 +314,39 @@ output_instance_json() {
     echo "    \"stop\": \"cliExtra stop $instance_id\","
     echo "    \"clean\": \"cliExtra clean $instance_id\""
     echo "  }"
+    echo "}"
+}
+
+# 输出单个实例详细信息（JSON格式）
+output_instance_json() {
+    local instance_id="$1"
+    local status="$2"
+    local session_info="$3"
+    local project_dir="$4"
+    local log_file="$5"
+    local log_size="$6"
+    local log_modified="$7"
+    local instance_dir="$8"
+    local namespace="$9"
+    
+    echo "{"
+    echo "  \"id\": \"$instance_id\","
+    echo "  \"status\": \"$status\","
+    echo "  \"namespace\": \"$namespace\","
+    echo "  \"session\": \"${session_info:-q_instance_$instance_id}\","
+    echo "  \"project_dir\": \"${project_dir:-null}\","
+    echo "  \"instance_dir\": \"${instance_dir:-null}\","
+    echo "  \"log_file\": \"${log_file:-null}\","
+    
+    if [[ -f "$log_file" ]]; then
+        echo "  \"log_size\": $log_size,"
+        echo "  \"log_modified\": \"$log_modified\","
+    else
+        echo "  \"log_size\": 0,"
+        echo "  \"log_modified\": null,"
+    fi
+    
+    echo "  \"attach_command\": \"tmux attach-session -t q_instance_$instance_id\""
     echo "}"
 }
 
