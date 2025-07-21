@@ -11,6 +11,7 @@
 - **实时监控**: 支持实时监控实例输出和日志查看
 - **消息发送**: 可以向运行中的实例发送消息
 - **单个实例清理**: 支持停止和清理单个实例
+- **Namespace管理**: 支持类似k8s namespace的概念，实例归属管理
 - **角色预设管理**: 支持前端、后端、测试、代码审查、运维等角色预设
 - **全局可用**: 安装后可在系统任何位置使用
 
@@ -114,6 +115,31 @@ cliExtra role apply backend -f myproject # 参数顺序灵活
 # 移除项目/实例中的角色预设
 cliExtra role remove
 cliExtra role remove myproject
+```
+
+### Namespace管理
+
+```bash
+# 创建namespace
+cliExtra ns create frontend
+cliExtra ns create backend
+cliExtra ns create devops
+
+# 查看namespace
+cliExtra ns show                    # 显示所有namespace
+cliExtra ns show frontend           # 显示frontend namespace详情
+cliExtra ns show --json             # JSON格式输出
+
+# 删除namespace
+cliExtra ns delete frontend         # 删除空的namespace
+cliExtra ns delete backend --force  # 强制删除（停止其中的实例）
+
+# 启动实例到指定namespace
+cliExtra start --namespace frontend
+cliExtra start --name api --ns backend
+
+# 修改实例的namespace
+cliExtra set-ns myinstance backend  # 将实例移动到backend namespace
 ```
 
 **注意**: 每个项目建议只保留一个角色预设，多个角色可能导致意图识别混乱。应用新角色时会自动移除现有角色。
