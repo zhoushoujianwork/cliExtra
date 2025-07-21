@@ -5,7 +5,7 @@
 ## 功能特点
 
 - **自动生成实例ID**: 支持自动生成随机实例ID，也可自定义实例名
-- **项目级管理**: 每个项目有自己的 `.cliExtra` 目录，状态和日志独立管理
+- **统一工作目录管理**: 所有实例信息集中在系统工作目录，项目目录保持干净
 - **灵活启动**: 支持当前目录、指定目录或Git仓库克隆启动
 - **会话管理**: 基于tmux，支持会话保持和上下文管理
 - **实时监控**: 支持实时监控实例输出和日志查看
@@ -14,6 +14,7 @@
 - **单个实例清理**: 支持停止和清理单个实例
 - **Namespace管理**: 支持类似k8s namespace的概念，实例归属管理
 - **角色预设管理**: 支持前端、后端、测试、代码审查、运维等角色预设
+- **跨项目协作**: 不同项目的实例可以在同一namespace中协作
 - **全局可用**: 安装后可在系统任何位置使用
 
 ## 安装
@@ -258,30 +259,58 @@ project/
 
 ## 项目结构
 
-每个项目目录下会创建 `.cliExtra` 目录和 `.amazonq` 目录：
+cliExtra 采用工作目录统一管理的方式，所有实例信息都存储在系统工作目录中，项目目录只保留配置文件：
+
+### 工作目录结构
 
 ```
-project/
-├── .cliExtra/
-│   ├── config              # 项目配置
-│   └── namespaces/         # namespace目录（新结构）
-│       ├── default/        # default namespace
-│       │   ├── instances/  # 实例目录
-│       │   │   └── instance_123/
-│       │   │       ├── tmux.log    # tmux会话日志
-│       │   │       └── info        # 实例详细信息
-│       │   ├── logs/       # 实例日志目录
-│       │   │   └── instance_123.log
-│       │   ├── conversations/  # 对话记录目录
-│       │   │   └── instance_123.json
-│       │   └── namespace_cache.json  # namespace缓存
-│       └── frontend/       # frontend namespace
-│           ├── instances/
-│           ├── logs/
-│           ├── conversations/
-│           └── namespace_cache.json
+# macOS 系统
+~/Library/Application Support/cliExtra/
+├── config                      # 全局配置
+├── namespaces/                 # 所有namespace统一管理
+│   ├── default/                # default namespace
+│   │   ├── instances/          # 实例目录
+│   │   │   └── instance_123/
+│   │   │       ├── tmux.log    # tmux会话日志
+│   │   │       ├── info        # 实例详细信息
+│   │   │       ├── project_path # 项目路径引用
+│   │   │       └── namespace   # namespace信息（向后兼容）
+│   │   ├── logs/               # 实例日志目录
+│   │   │   └── instance_123.log
+│   │   ├── conversations/      # 对话记录目录
+│   │   │   └── instance_123.json
+│   │   └── namespace_cache.json # namespace缓存
+│   ├── frontend/               # frontend namespace
+│   │   ├── instances/
+│   │   ├── logs/
+│   │   ├── conversations/
+│   │   └── namespace_cache.json
+│   └── backend/                # backend namespace
+│       ├── instances/
+│       ├── logs/
+│       ├── conversations/
+│       └── namespace_cache.json
+└── projects/                   # Git克隆的项目（可选）
+    └── cloned-repo/
+
+# Linux 系统
+/opt/cliExtra/
+├── config
+├── namespaces/
+│   ├── default/
+│   ├── frontend/
+│   └── backend/
+└── projects/
+```
+
+### 项目目录结构
+
+每个被管理的项目目录只包含配置文件，不存储实例运行信息：
+
+```
+/path/to/your/project/
 ├── .amazonq/
-│   └── rules/              # Amazon Q规则目录（自动同步）
+│   └── rules/                  # Amazon Q规则目录（自动同步）
 │       ├── frontend-engineer.md    # 前端工程师角色预设
 │       ├── backend-engineer.md     # 后端工程师角色预设
 │       ├── devops-engineer.md      # 运维工程师角色预设
@@ -292,13 +321,13 @@ project/
 └── ... (项目文件)
 ```
 
-**重要**: 
-- `.amazonq/rules` 目录在每次启动实例时自动从 `cliExtra/rules` 同步
-- 每个项目都有独立的rules副本，确保项目间的隔离
-- rules文件包含协作感知能力和角色边界管理
-- 工具文件以 `tools_` 前缀命名，支持动态添加和移除
-- 新的namespace目录结构支持更好的实例组织和对话记录管理
-- 每个namespace都有独立的对话记录和消息历史缓存
+### 目录设计优势
+
+1. **统一管理**: 所有实例信息集中在工作目录，便于管理和备份
+2. **项目隔离**: 项目目录保持干净，只包含必要的配置文件
+3. **跨项目协作**: 不同项目的实例可以在同一namespace中协作
+4. **系统级服务**: 支持系统级的实例管理和监控
+5. **向后兼容**: 保持对旧版本目录结构的兼容性
 
 ## tmux操作
 

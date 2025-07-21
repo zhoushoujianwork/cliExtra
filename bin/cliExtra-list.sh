@@ -55,7 +55,18 @@ done
 get_instance_namespace() {
     local instance_id="$1"
     
-    # 查找实例所在的项目目录
+    # 从工作目录的namespace结构中查找实例
+    if [ -d "$CLIEXTRA_HOME/namespaces" ]; then
+        for ns_dir in "$CLIEXTRA_HOME/namespaces"/*; do
+            local instance_dir="$ns_dir/instances/instance_$instance_id"
+            if [[ -d "$instance_dir" ]]; then
+                basename "$ns_dir"
+                return 0
+            fi
+        done
+    fi
+    
+    # 向后兼容：查找实例所在的项目目录
     local project_dir=$(find_instance_project "$instance_id")
     if [[ $? -eq 0 ]]; then
         # 首先尝试新的namespace目录结构
@@ -96,44 +107,60 @@ get_instance_details() {
     local config_file=""
     local instance_dir=""
     
-    # 查找实例所在的项目目录 - 从当前目录开始向上查找
-    local current_dir="$(pwd)"
-    while [[ "$current_dir" != "/" ]]; do
-        local cliextra_dir="$current_dir/.cliExtra"
-        if [[ -d "$cliextra_dir" ]]; then
-            local instance_path="$cliextra_dir/instances/instance_$instance_id"
-            local log_path="$cliextra_dir/logs/instance_$instance_id.log"
-            
-            if [[ -d "$instance_path" ]] || [[ -f "$log_path" ]]; then
-                project_dir="$current_dir"
-                instance_dir="$instance_path"
-                log_file="$log_path"
-                config_file="$cliextra_dir/config"
-                break
-            fi
+    # 使用新的实例查找函数
+    instance_dir=$(find_instance_info_dir "$instance_id")
+    if [[ $? -eq 0 && -n "$instance_dir" ]]; then
+        # 从实例信息中获取项目目录
+        if [ -f "$instance_dir/project_path" ]; then
+            project_dir=$(cat "$instance_dir/project_path")
+        elif [ -f "$instance_dir/info" ]; then
+            source "$instance_dir/info"
+            project_dir="$PROJECT_DIR"
         fi
-        current_dir="$(dirname "$current_dir")"
-    done
-    
-    # 如果在当前目录树中没找到，尝试在常见位置查找
-    if [[ -z "$project_dir" ]]; then
-        for search_dir in "$HOME" "/Users" "/home"; do
-            if [[ -d "$search_dir" ]]; then
-                while IFS= read -r -d '' cliextra_dir; do
-                    local parent_dir=$(dirname "$cliextra_dir")
-                    local instance_path="$cliextra_dir/instances/instance_$instance_id"
-                    local log_path="$cliextra_dir/logs/instance_$instance_id.log"
-                    
-                    if [[ -d "$instance_path" ]] || [[ -f "$log_path" ]]; then
-                        project_dir="$parent_dir"
-                        instance_dir="$instance_path"
-                        log_file="$log_path"
-                        config_file="$cliextra_dir/config"
-                        break 2
-                    fi
-                done < <(find "$search_dir" -name ".cliExtra" -type d -maxdepth 5 -print0 2>/dev/null)
+        
+        # 构建日志文件路径
+        local ns_dir=$(dirname "$(dirname "$instance_dir")")
+        log_file="$ns_dir/logs/instance_$instance_id.log"
+    else
+        # 向后兼容：查找实例所在的项目目录 - 从当前目录开始向上查找
+        local current_dir="$(pwd)"
+        while [[ "$current_dir" != "/" ]]; do
+            local cliextra_dir="$current_dir/.cliExtra"
+            if [[ -d "$cliextra_dir" ]]; then
+                local instance_path="$cliextra_dir/instances/instance_$instance_id"
+                local log_path="$cliextra_dir/logs/instance_$instance_id.log"
+                
+                if [[ -d "$instance_path" ]] || [[ -f "$log_path" ]]; then
+                    project_dir="$current_dir"
+                    instance_dir="$instance_path"
+                    log_file="$log_path"
+                    config_file="$cliextra_dir/config"
+                    break
+                fi
             fi
+            current_dir="$(dirname "$current_dir")"
         done
+        
+        # 如果在当前目录树中没找到，尝试在常见位置查找
+        if [[ -z "$project_dir" ]]; then
+            for search_dir in "$HOME" "/Users" "/home"; do
+                if [[ -d "$search_dir" ]]; then
+                    while IFS= read -r -d '' cliextra_dir; do
+                        local parent_dir=$(dirname "$cliextra_dir")
+                        local instance_path="$cliextra_dir/instances/instance_$instance_id"
+                        local log_path="$cliextra_dir/logs/instance_$instance_id.log"
+                        
+                        if [[ -d "$instance_path" ]] || [[ -f "$log_path" ]]; then
+                            project_dir="$parent_dir"
+                            instance_dir="$instance_path"
+                            log_file="$log_path"
+                            config_file="$cliextra_dir/config"
+                            break 2
+                        fi
+                    done < <(find "$search_dir" -name ".cliExtra" -type d -maxdepth 5 -print0 2>/dev/null)
+                fi
+            done
+        fi
     fi
     
     # 获取tmux会话信息
@@ -176,26 +203,67 @@ get_all_instances() {
     local instances=()
     local instance_data=()
     
-    # 获取所有tmux会话
+    # 从工作目录的namespace结构中查找所有实例
+    if [ -d "$CLIEXTRA_HOME/namespaces" ]; then
+        for ns_dir in "$CLIEXTRA_HOME/namespaces"/*; do
+            if [ -d "$ns_dir/instances" ]; then
+                local namespace=$(basename "$ns_dir")
+                for instance_dir in "$ns_dir/instances"/instance_*; do
+                    if [ -d "$instance_dir" ]; then
+                        local instance_id=$(basename "$instance_dir" | sed 's/instance_//')
+                        local session_name="q_instance_$instance_id"
+                        
+                        # 检查tmux会话状态
+                        local status="Not Running"
+                        if tmux has-session -t "$session_name" 2>/dev/null; then
+                            local client_count=$(tmux list-clients -t "$session_name" 2>/dev/null | wc -l)
+                            if [ "$client_count" -gt 0 ]; then
+                                status="Attached"
+                            else
+                                status="Detached"
+                            fi
+                        fi
+                        
+                        instances+=("$instance_id")
+                        instance_data+=("$instance_id:$status:$session_name:$namespace")
+                    fi
+                done
+            fi
+        done
+    fi
+    
+    # 向后兼容：获取所有tmux会话
     while IFS= read -r session_line; do
         if [[ "$session_line" == q_instance_* ]]; then
             # 提取实例信息
             session_info=$(echo "$session_line" | cut -d: -f1)
             instance_id=$(echo "$session_info" | sed 's/q_instance_//')
             
-            # 检查会话状态
-            local client_count=$(tmux list-clients -t "$session_info" 2>/dev/null | wc -l)
-            if [ "$client_count" -gt 0 ]; then
-                status="Attached"
-            else
-                status="Detached"
+            # 检查是否已经在新结构中找到了这个实例
+            local found=false
+            for existing_instance in "${instances[@]}"; do
+                if [ "$existing_instance" = "$instance_id" ]; then
+                    found=true
+                    break
+                fi
+            done
+            
+            # 如果没有在新结构中找到，添加到列表中
+            if [ "$found" = false ]; then
+                # 检查会话状态
+                local client_count=$(tmux list-clients -t "$session_info" 2>/dev/null | wc -l)
+                if [ "$client_count" -gt 0 ]; then
+                    status="Attached"
+                else
+                    status="Detached"
+                fi
+                
+                # 获取namespace信息
+                local namespace=$(get_instance_namespace "$instance_id")
+                
+                instances+=("$instance_id")
+                instance_data+=("$instance_id:$status:$session_info:$namespace")
             fi
-            
-            # 获取namespace信息
-            local namespace=$(get_instance_namespace "$instance_id")
-            
-            instances+=("$instance_id")
-            instance_data+=("$instance_id:$status:$session_info:$namespace")
         fi
     done < <(tmux list-sessions -F "#{session_name}" 2>/dev/null)
     

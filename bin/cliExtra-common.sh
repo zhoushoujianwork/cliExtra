@@ -27,46 +27,37 @@ load_config() {
 find_instance_project() {
     local instance_id="$1"
     
-    # 搜索当前目录 - 新的namespace结构
-    if [ -d ".cliExtra/namespaces" ]; then
-        for ns_dir in .cliExtra/namespaces/*; do
-            if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
-                echo "$(pwd)"
-                return 0
+    # 从工作目录的namespace结构中查找实例
+    if [ -d "$CLIEXTRA_HOME/namespaces" ]; then
+        for ns_dir in "$CLIEXTRA_HOME/namespaces"/*; do
+            local instance_dir="$ns_dir/instances/instance_$instance_id"
+            if [ -d "$instance_dir" ]; then
+                # 读取项目路径引用
+                if [ -f "$instance_dir/project_path" ]; then
+                    cat "$instance_dir/project_path"
+                    return 0
+                elif [ -f "$instance_dir/info" ]; then
+                    # 从info文件中提取项目路径
+                    source "$instance_dir/info"
+                    echo "$PROJECT_DIR"
+                    return 0
+                fi
             fi
         done
     fi
     
-    # 搜索当前目录 - 旧的结构（向后兼容）
+    # 向后兼容：搜索旧的项目目录结构
+    # 搜索当前目录 - 旧的结构
     if [ -d ".cliExtra/instances/instance_$instance_id" ]; then
         echo "$(pwd)"
         return 0
     fi
     
-    # 搜索全局项目目录 - 新结构
-    if [ -d "$CLIEXTRA_HOME/projects" ]; then
-        for project_dir in "$CLIEXTRA_HOME/projects"/*; do
-            if [ -d "$project_dir/.cliExtra/namespaces" ]; then
-                for ns_dir in "$project_dir/.cliExtra/namespaces"/*; do
-                    if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
-                        echo "$project_dir"
-                        return 0
-                    fi
-                done
-            fi
-            # 旧结构兼容
-            if [ -d "$project_dir/.cliExtra/instances/instance_$instance_id" ]; then
-                echo "$project_dir"
-                return 0
-            fi
-        done
-    fi
-    
-    # 搜索用户主目录 - 新结构
-    if [ -d "$HOME/.cliExtra/namespaces" ]; then
-        for ns_dir in "$HOME/.cliExtra/namespaces"/*; do
+    # 搜索当前目录 - 旧的namespace结构
+    if [ -d ".cliExtra/namespaces" ]; then
+        for ns_dir in .cliExtra/namespaces/*; do
             if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
-                echo "$HOME"
+                echo "$(pwd)"
                 return 0
             fi
         done
@@ -78,22 +69,66 @@ find_instance_project() {
         return 0
     fi
     
-    # 搜索其他可能的位置 - 新结构
-    for search_dir in "$HOME" "$HOME/Projects" "$HOME/workspace" "$HOME/dev"; do
-        if [ -d "$search_dir/.cliExtra/namespaces" ]; then
-            for ns_dir in "$search_dir/.cliExtra/namespaces"/*; do
-                if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
-                    echo "$search_dir"
-                    return 0
-                fi
-            done
-        fi
-        # 旧结构兼容
-        if [ -d "$search_dir/.cliExtra/instances/instance_$instance_id" ]; then
-            echo "$search_dir"
-            return 0
-        fi
-    done
+    # 搜索用户主目录 - 旧的namespace结构
+    if [ -d "$HOME/.cliExtra/namespaces" ]; then
+        for ns_dir in "$HOME/.cliExtra/namespaces"/*; do
+            if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
+                echo "$HOME"
+                return 0
+            fi
+        done
+    fi
+    
+    return 1
+}
+
+# 查找实例信息目录
+find_instance_info_dir() {
+    local instance_id="$1"
+    
+    # 从工作目录的namespace结构中查找实例
+    if [ -d "$CLIEXTRA_HOME/namespaces" ]; then
+        for ns_dir in "$CLIEXTRA_HOME/namespaces"/*; do
+            local instance_dir="$ns_dir/instances/instance_$instance_id"
+            if [ -d "$instance_dir" ]; then
+                echo "$instance_dir"
+                return 0
+            fi
+        done
+    fi
+    
+    # 向后兼容：搜索旧的结构
+    # 搜索当前目录 - 旧的结构
+    if [ -d ".cliExtra/instances/instance_$instance_id" ]; then
+        echo ".cliExtra/instances/instance_$instance_id"
+        return 0
+    fi
+    
+    # 搜索当前目录 - 旧的namespace结构
+    if [ -d ".cliExtra/namespaces" ]; then
+        for ns_dir in .cliExtra/namespaces/*; do
+            if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
+                echo "$ns_dir/instances/instance_$instance_id"
+                return 0
+            fi
+        done
+    fi
+    
+    # 搜索用户主目录 - 旧结构
+    if [ -d "$HOME/.cliExtra/instances/instance_$instance_id" ]; then
+        echo "$HOME/.cliExtra/instances/instance_$instance_id"
+        return 0
+    fi
+    
+    # 搜索用户主目录 - 旧的namespace结构
+    if [ -d "$HOME/.cliExtra/namespaces" ]; then
+        for ns_dir in "$HOME/.cliExtra/namespaces"/*; do
+            if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
+                echo "$ns_dir/instances/instance_$instance_id"
+                return 0
+            fi
+        done
+    fi
     
     return 1
 }

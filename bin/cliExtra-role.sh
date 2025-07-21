@@ -13,31 +13,46 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
-# 角色定义
-ROLE_KEYS=("frontend" "backend" "test" "reviewer" "devops")
-ROLE_NAMES=("前端工程师" "后端工程师" "测试工程师" "代码审查工程师" "运维工程师")
+# 角色定义（动态加载 roles 目录）
+ROLES_DIR="$(dirname "$(dirname "$0")")/roles"
 
-# 获取角色名称
+# 动态获取所有角色key（如 frontend、backend、embedded 等）
+get_all_role_keys() {
+    local files=($(ls "$ROLES_DIR"/*-engineer.md 2>/dev/null))
+    for file in "${files[@]}"; do
+        basename "$file" | sed 's/-engineer\.md$//'
+    done
+}
+
+# 动态获取角色中文名称（取文件第一行或第二行的中文）
 get_role_name() {
     local role="$1"
-    for i in "${!ROLE_KEYS[@]}"; do
-        if [ "${ROLE_KEYS[$i]}" = "$role" ]; then
-            echo "${ROLE_NAMES[$i]}"
+    local file="$ROLES_DIR/${role}-engineer.md"
+    if [ -f "$file" ]; then
+        # 取第一行 # 后的中文，去除空格和“角色预设”
+        local name_line=$(head -n 1 "$file")
+        local zh_name=$(echo "$name_line" | sed -E 's/^# *([^ ]+).*角色预设.*/\1/' | tr -d ' ')
+        if [[ -n "$zh_name" && "$zh_name" != "$name_line" ]]; then
+            echo "$zh_name"
             return 0
         fi
-    done
+        # 取第二行的**中文**
+        name_line=$(sed -n '2p' "$file")
+        zh_name=$(echo "$name_line" | grep -oE '\*\*([^*]+)\*\*' | head -n1 | sed 's/\*//g')
+        if [ -n "$zh_name" ]; then
+            echo "$zh_name"
+            return 0
+        fi
+    fi
+    echo "$role"
     return 1
 }
 
 # 检查角色是否存在
 role_exists() {
     local role="$1"
-    for key in "${ROLE_KEYS[@]}"; do
-        if [ "$key" = "$role" ]; then
-            return 0
-        fi
-    done
-    return 1
+    local file="$ROLES_DIR/${role}-engineer.md"
+    [ -f "$file" ]
 }
 
 # 显示帮助
@@ -71,8 +86,9 @@ show_help() {
 list_roles() {
     echo -e "${BLUE}=== 可用角色列表 ===${NC}"
     echo ""
-    for i in "${!ROLE_KEYS[@]}"; do
-        echo -e "${GREEN}${ROLE_KEYS[$i]}${NC} - ${ROLE_NAMES[$i]}"
+    for role in $(get_all_role_keys); do
+        local name=$(get_role_name "$role")
+        echo -e "${GREEN}${role}${NC} - ${name}"
     done
     echo ""
 }
@@ -83,7 +99,7 @@ show_role() {
     
     # 如果是角色名
     if role_exists "$arg"; then
-        local role_file="$(dirname "$(dirname "$0")")/roles/${arg}-engineer.md"
+        local role_file="$ROLES_DIR/${arg}-engineer.md"
         if [ ! -f "$role_file" ]; then
             echo -e "${RED}错误: 角色文件不存在: $role_file${NC}"
             return 1
@@ -136,7 +152,7 @@ apply_role() {
     
     if ! role_exists "$role"; then
         echo -e "${RED}错误: 未知角色 '$role'${NC}"
-        echo "可用角色: ${ROLE_KEYS[*]}"
+        echo "可用角色: $(get_all_role_keys)"
         return 1
     fi
     
@@ -159,7 +175,7 @@ apply_role() {
         return 1
     fi
     
-    local role_file="$(dirname "$(dirname "$0")")/roles/${role}-engineer.md"
+    local role_file="$ROLES_DIR/${role}-engineer.md"
     
     if [ ! -f "$role_file" ]; then
         echo -e "${RED}错误: 角色文件不存在: $role_file${NC}"
@@ -182,7 +198,7 @@ apply_role() {
     
     # 检查是否已有其他角色预设
     local existing_roles=()
-    for existing_role in "${ROLE_KEYS[@]}"; do
+    for existing_role in $(get_all_role_keys); do
         local existing_file="$rules_dir/${existing_role}-engineer.md"
         if [ -f "$existing_file" ]; then
             existing_roles+=("$existing_role")
@@ -276,7 +292,7 @@ remove_role() {
     
     # 移除所有角色预设文件
     local removed_count=0
-    for role in "${ROLE_KEYS[@]}"; do
+    for role in $(get_all_role_keys); do
         local role_file="$rules_dir/${role}-engineer.md"
         if [ -f "$role_file" ]; then
             rm -f "$role_file"

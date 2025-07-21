@@ -26,16 +26,28 @@ record_conversation() {
     local sender="$3"
     local timestamp="$4"
     
-    # 查找实例所在的项目目录
-    local project_dir=$(find_instance_project "$instance_id")
-    if [[ $? -ne 0 ]]; then
-        echo "警告: 无法找到实例 $instance_id 的项目目录，跳过对话记录"
-        return 1
-    fi
+    # 从工作目录查找实例信息
+    local instance_dir=$(find_instance_info_dir "$instance_id")
+    local conversation_file=""
+    local namespace="default"
     
-    # 获取实例namespace
-    local namespace=$(get_instance_namespace_from_project "$project_dir" "$instance_id")
-    local conversation_file="$project_dir/.cliExtra/namespaces/$namespace/conversations/instance_$instance_id.json"
+    if [[ $? -eq 0 && -n "$instance_dir" ]]; then
+        # 从工作目录结构获取对话文件
+        local ns_dir=$(dirname "$(dirname "$instance_dir")")
+        conversation_file="$ns_dir/conversations/instance_$instance_id.json"
+        namespace=$(basename "$ns_dir")
+    else
+        # 向后兼容：查找实例所在的项目目录
+        local project_dir=$(find_instance_project "$instance_id")
+        if [[ $? -ne 0 ]]; then
+            echo "警告: 无法找到实例 $instance_id，跳过对话记录"
+            return 1
+        fi
+        
+        # 获取实例namespace
+        namespace=$(get_instance_namespace_from_project "$project_dir" "$instance_id")
+        conversation_file="$project_dir/.cliExtra/namespaces/$namespace/conversations/instance_$instance_id.json"
+    fi
     
     # 确保对话文件存在
     if [[ ! -f "$conversation_file" ]]; then
@@ -44,7 +56,6 @@ record_conversation() {
 {
   "instance_id": "$instance_id",
   "namespace": "$namespace",
-  "project_dir": "$project_dir",
   "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "conversations": []
 }
@@ -68,6 +79,39 @@ EOF
         echo "✓ 对话已记录到: $conversation_file"
     else
         echo "警告: jq未安装，无法记录对话"
+    fi
+}
+
+# 更新namespace缓存文件
+update_namespace_cache_file() {
+    local cache_file="$1"
+    local instance_id="$2"
+    local action="$3"
+    local timestamp="$4"
+    local message="$5"
+    
+    # 使用jq更新缓存文件
+    if command -v jq >/dev/null 2>&1; then
+        local temp_file=$(mktemp)
+        jq --arg instance_id "$instance_id" \
+           --arg action "$action" \
+           --arg timestamp "$timestamp" \
+           --arg message "$message" \
+           '.instances[$instance_id] = {
+               "last_action": $action,
+               "last_update": $timestamp,
+               "status": (if $action == "started" then "running" elif $action == "stopped" then "stopped" else "unknown" end)
+           } |
+           if $message != "" then
+               .message_history += [{
+                   "timestamp": $timestamp,
+                   "instance_id": $instance_id,
+                   "action": $action,
+                   "message": $message
+               }]
+           else . end' "$cache_file" > "$temp_file" && mv "$temp_file" "$cache_file"
+    else
+        echo "警告: jq未安装，无法更新namespace缓存"
     fi
 }
 
@@ -165,11 +209,22 @@ send_message_to_instance() {
     # 记录对话
     record_conversation "$instance_id" "$message" "external" "$timestamp"
     
-    # 查找项目目录并更新namespace缓存
-    local project_dir=$(find_instance_project "$instance_id")
-    if [[ $? -eq 0 ]]; then
-        local namespace=$(get_instance_namespace_from_project "$project_dir" "$instance_id")
-        update_namespace_cache "$project_dir" "$namespace" "$instance_id" "message_received" "$timestamp" "$message"
+    # 更新namespace缓存
+    local instance_dir=$(find_instance_info_dir "$instance_id")
+    if [[ $? -eq 0 && -n "$instance_dir" ]]; then
+        # 从工作目录结构更新缓存
+        local ns_dir=$(dirname "$(dirname "$instance_dir")")
+        local ns_cache_file="$ns_dir/namespace_cache.json"
+        local namespace=$(basename "$ns_dir")
+        
+        update_namespace_cache_file "$ns_cache_file" "$instance_id" "message_received" "$timestamp" "$message"
+    else
+        # 向后兼容：查找项目目录并更新namespace缓存
+        local project_dir=$(find_instance_project "$instance_id")
+        if [[ $? -eq 0 ]]; then
+            local namespace=$(get_instance_namespace_from_project "$project_dir" "$instance_id")
+            update_namespace_cache "$project_dir" "$namespace" "$instance_id" "message_received" "$timestamp" "$message"
+        fi
     fi
 }
 

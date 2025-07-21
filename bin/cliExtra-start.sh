@@ -75,6 +75,7 @@ init_project() {
             echo "项目已存在: $target_dir"
         else
             echo "正在克隆项目: $project_path"
+            mkdir -p "$CLIEXTRA_HOME/projects"
             if git clone "$project_path" "$target_dir"; then
                 echo "✓ 项目克隆成功: $target_dir"
             else
@@ -91,21 +92,7 @@ init_project() {
         target_dir=$(realpath "$project_path")
     fi
     
-    # 创建 .cliExtra 目录
-    local cliextra_dir="$target_dir/.cliExtra"
-    mkdir -p "$cliextra_dir/instances"
-    mkdir -p "$cliextra_dir/logs"
-    
-    # 创建项目配置
-    if [ ! -f "$cliextra_dir/config" ]; then
-        cat > "$cliextra_dir/config" << EOF
-# 项目配置
-PROJECT_PATH="$target_dir"
-PROJECT_NAME="$(basename "$target_dir")"
-CREATED_AT="$(date)"
-EOF
-    fi
-    
+    # 不在项目目录创建 .cliExtra，所有实例信息都在工作目录管理
     echo "$target_dir"
 }
 
@@ -198,9 +185,8 @@ start_tmux_instance() {
     local namespace="$3"
     local session_name="q_instance_$instance_id"
     
-    # 使用项目的 .cliExtra 目录，按namespace组织
-    local cliextra_dir="$project_dir/.cliExtra"
-    local ns_dir="$cliextra_dir/namespaces/$namespace"
+    # 使用工作目录统一管理所有实例信息
+    local ns_dir="$CLIEXTRA_HOME/namespaces/$namespace"
     local session_dir="$ns_dir/instances/instance_$instance_id"
     local log_file="$ns_dir/logs/instance_$instance_id.log"
     local conversation_file="$ns_dir/conversations/instance_$instance_id.json"
@@ -231,7 +217,6 @@ EOF
         cat > "$ns_cache_file" << EOF
 {
   "namespace": "$namespace",
-  "project_dir": "$project_dir",
   "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
   "instances": {},
   "message_history": []
@@ -285,6 +270,9 @@ PID="$$"
 CONVERSATION_FILE="$conversation_file"
 NS_CACHE_FILE="$ns_cache_file"
 EOF
+        
+        # 保存项目路径引用
+        echo "$project_dir" > "$session_dir/project_path"
         
         # 保存namespace信息（向后兼容）
         echo "$namespace" > "$session_dir/namespace"

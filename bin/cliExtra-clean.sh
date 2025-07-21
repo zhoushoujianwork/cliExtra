@@ -30,9 +30,31 @@ show_help() {
 get_instance_namespace() {
     local instance_id="$1"
     
-    # 查找实例所在的项目目录
+    # 从工作目录的namespace结构中查找实例
+    if [ -d "$CLIEXTRA_HOME/namespaces" ]; then
+        for ns_dir in "$CLIEXTRA_HOME/namespaces"/*; do
+            local instance_dir="$ns_dir/instances/instance_$instance_id"
+            if [[ -d "$instance_dir" ]]; then
+                basename "$ns_dir"
+                return 0
+            fi
+        done
+    fi
+    
+    # 向后兼容：查找实例所在的项目目录
     local project_dir=$(find_instance_project "$instance_id")
     if [[ $? -eq 0 ]]; then
+        # 尝试新的namespace结构
+        if [ -d "$project_dir/.cliExtra/namespaces" ]; then
+            for ns_dir in "$project_dir/.cliExtra/namespaces"/*; do
+                if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
+                    basename "$ns_dir"
+                    return 0
+                fi
+            done
+        fi
+        
+        # 回退到旧结构
         local instance_dir="$project_dir/.cliExtra/instances/instance_$instance_id"
         local ns_file="$instance_dir/namespace"
         
@@ -87,28 +109,79 @@ clean_single_instance() {
     # 停止实例
     stop_tmux_instance "$instance_id"
     
-    # 查找并清理项目目录中的实例文件
-    local project_dir=$(find_instance_project "$instance_id")
-    if [ $? -eq 0 ]; then
-        local instance_dir="$project_dir/.cliExtra/instances/instance_$instance_id"
-        local log_file="$project_dir/.cliExtra/logs/instance_$instance_id.log"
+    # 从工作目录清理实例文件
+    local instance_dir=$(find_instance_info_dir "$instance_id")
+    if [[ $? -eq 0 && -n "$instance_dir" ]]; then
+        # 获取namespace目录
+        local ns_dir=$(dirname "$(dirname "$instance_dir")")
+        local log_file="$ns_dir/logs/instance_$instance_id.log"
+        local conversation_file="$ns_dir/conversations/instance_$instance_id.json"
         
         # 删除实例目录
         if [ -d "$instance_dir" ]; then
             rm -rf "$instance_dir"
-            echo "✓ 实例目录已删除: $instance_dir"
+            echo "✓ 删除实例目录: $instance_dir"
         fi
         
         # 删除日志文件
         if [ -f "$log_file" ]; then
             rm -f "$log_file"
-            echo "✓ 日志文件已删除: $log_file"
+            echo "✓ 删除日志文件: $log_file"
         fi
         
-        echo "✓ 实例 $instance_id 已完全清理"
+        # 删除对话记录文件
+        if [ -f "$conversation_file" ]; then
+            rm -f "$conversation_file"
+            echo "✓ 删除对话记录: $conversation_file"
+        fi
+        
+        echo "✓ 实例 $instance_id 清理完成"
     else
-        echo "⚠ 未找到实例 $instance_id 的项目目录"
-        echo "✓ 实例 $instance_id 已停止"
+        # 向后兼容：查找并清理项目目录中的实例文件
+        local project_dir=$(find_instance_project "$instance_id")
+        if [ $? -eq 0 ]; then
+            # 尝试新的namespace结构
+            local cleaned=false
+            if [ -d "$project_dir/.cliExtra/namespaces" ]; then
+                for ns_dir in "$project_dir/.cliExtra/namespaces"/*; do
+                    local old_instance_dir="$ns_dir/instances/instance_$instance_id"
+                    if [ -d "$old_instance_dir" ]; then
+                        local old_log_file="$ns_dir/logs/instance_$instance_id.log"
+                        local old_conversation_file="$ns_dir/conversations/instance_$instance_id.json"
+                        
+                        rm -rf "$old_instance_dir"
+                        [ -f "$old_log_file" ] && rm -f "$old_log_file"
+                        [ -f "$old_conversation_file" ] && rm -f "$old_conversation_file"
+                        
+                        echo "✓ 清理旧结构实例文件"
+                        cleaned=true
+                        break
+                    fi
+                done
+            fi
+            
+            # 回退到最旧的结构
+            if [ "$cleaned" = false ]; then
+                local old_instance_dir="$project_dir/.cliExtra/instances/instance_$instance_id"
+                local old_log_file="$project_dir/.cliExtra/logs/instance_$instance_id.log"
+                
+                # 删除实例目录
+                if [ -d "$old_instance_dir" ]; then
+                    rm -rf "$old_instance_dir"
+                    echo "✓ 删除实例目录: $old_instance_dir"
+                fi
+                
+                # 删除日志文件
+                if [ -f "$old_log_file" ]; then
+                    rm -f "$old_log_file"
+                    echo "✓ 删除日志文件: $old_log_file"
+                fi
+            fi
+            
+            echo "✓ 实例 $instance_id 清理完成"
+        else
+            echo "⚠ 未找到实例 $instance_id 的文件，但tmux会话已停止"
+        fi
     fi
 }
 
