@@ -66,6 +66,12 @@ cliExtra list
 # 列出所有实例（JSON格式，包含详细信息）
 cliExtra list --json
 
+# 显示指定实例的详细信息
+cliExtra list myinstance
+
+# 显示指定实例的详细信息（JSON格式）
+cliExtra list myinstance --json
+
 # 查看实例状态
 cliExtra status myproject
 
