@@ -23,6 +23,7 @@ show_help() {
     echo "  $0 monitor <instance_id>     - 实时监控实例输出"
     echo "  $0 clean <instance_id>       - 清理指定实例"
     echo "  $0 clean-all                 - 清理所有实例"
+    echo "  $0 role <command>            - 角色预设管理"
     echo "  $0 help                      - 显示此帮助"
     echo ""
     echo "启动示例:"
@@ -40,6 +41,8 @@ show_help() {
     echo "  $0 clean myproject           # 清理实例myproject"
     echo "  $0 logs myproject 20         # 查看实例myproject最近20行日志"
     echo "  $0 monitor myproject         # 实时监控实例myproject"
+    echo "  $0 role list                 # 列出所有可用角色"
+    echo "  $0 role apply frontend       # 应用前端工程师角色到当前项目"
     echo ""
     echo "Screen操作:"
     echo "  接管会话: screen -r q_instance_<id>"
@@ -54,6 +57,7 @@ show_help() {
     echo "  - 程序可发送消息到实例"
     echo "  - 支持会话保持和上下文管理"
     echo "  - 自动日志记录"
+    echo "  - 角色预设管理（前端、后端、测试、代码审查）"
     echo ""
 }
 
@@ -91,6 +95,9 @@ case "${1:-}" in
         ;;
     "clean-all")
         "$SCRIPT_DIR/bin/cliExtra-clean.sh" "all"
+        ;;
+    "role")
+        "$SCRIPT_DIR/bin/cliExtra-role.sh" "${@:2}"
         ;;
     "help"|"")
         show_help

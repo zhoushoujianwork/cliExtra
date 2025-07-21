@@ -11,6 +11,7 @@
 - **实时监控**: 支持实时监控实例输出和日志查看
 - **消息发送**: 可以向运行中的实例发送消息
 - **单个实例清理**: 支持停止和清理单个实例
+- **角色预设管理**: 支持前端、后端、测试、代码审查等角色预设
 - **全局可用**: 安装后可在系统任何位置使用
 
 ## 安装
@@ -50,6 +51,10 @@ cliExtra start https://github.com/user/repo.git  # 克隆并启动
 # 指定实例名字
 cliExtra start --name myproject   # 在当前目录启动，实例名为myproject
 cliExtra start ../ --name test    # 在上级目录启动，实例名为test
+
+# 应用角色预设
+cliExtra start --role frontend    # 启动并应用前端工程师角色
+cliExtra start --name backend --role backend  # 启动并应用后端工程师角色
 ```
 
 ### 实例管理
@@ -75,6 +80,25 @@ cliExtra clean myproject
 
 # 清理所有实例
 cliExtra clean-all
+```
+
+### 角色预设管理
+
+```bash
+# 列出所有可用角色
+cliExtra role list
+
+# 显示角色预设内容
+cliExtra role show frontend
+
+# 应用角色预设到项目
+cliExtra role apply frontend
+cliExtra role apply backend /path/to/project
+
+# 移除项目中的角色预设
+cliExtra role remove
+cliExtra role remove /path/to/project
+```
 ```
 
 ### 监控和日志
@@ -120,12 +144,39 @@ cliExtra/
     ├── cliExtra-status.sh   # 查看状态
     ├── cliExtra-logs.sh     # 查看日志
     ├── cliExtra-monitor.sh  # 监控输出
-    └── cliExtra-clean.sh    # 清理实例
+    ├── cliExtra-clean.sh    # 清理实例
+    └── cliExtra-role.sh     # 角色预设管理
 ```
 
 ## 项目结构
 
 每个项目目录下会创建 `.cliExtra` 目录：
+
+```
+project/
+├── .cliExtra/
+│   ├── config              # 项目配置
+│   ├── instances/          # 实例目录
+│   │   └── instance_123/   # 实例123的会话信息
+│   └── logs/               # 日志目录
+│       └── instance_123.log # 实例123的日志
+└── ... (项目文件)
+```
+
+### 角色预设结构
+
+当应用角色预设时，会在项目目录下创建 `.amazonq` 目录：
+
+```
+project/
+├── .amazonq/
+│   └── rules/              # Amazon Q规则目录
+│       ├── frontend-engineer.md  # 前端工程师角色预设
+│       ├── backend-engineer.md   # 后端工程师角色预设
+│       ├── test-engineer.md      # 测试工程师角色预设
+│       └── reviewer-engineer.md  # 代码审查工程师角色预设
+└── ... (项目文件)
+```
 
 ```
 project/

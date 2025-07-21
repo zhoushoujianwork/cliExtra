@@ -15,12 +15,17 @@ generate_instance_id() {
 parse_start_args() {
     local instance_name=""
     local project_path=""
+    local role=""
     
     # 解析参数
     while [[ $# -gt 0 ]]; do
         case $1 in
             --name)
                 instance_name="$2"
+                shift 2
+                ;;
+            --role)
+                role="$2"
                 shift 2
                 ;;
             -*)
@@ -45,7 +50,7 @@ parse_start_args() {
         echo "自动生成实例ID: $instance_name" >&2
     fi
     
-    echo "$instance_name|$project_path"
+    echo "$instance_name|$project_path|$role"
 }
 
 # 项目初始化
@@ -170,13 +175,19 @@ if [ $? -ne 0 ]; then
 fi
 
 # 解析结果
-IFS='|' read -r instance_id project_path <<< "$args_result"
+IFS='|' read -r instance_id project_path role <<< "$args_result"
 
 # 初始化项目
 project_dir=$(init_project "$project_path")
 if [ $? -ne 0 ]; then
     echo "项目初始化失败"
     exit 1
+fi
+
+# 应用角色预设（如果指定）
+if [ -n "$role" ]; then
+    echo "应用角色预设: $role"
+    "$SCRIPT_DIR/cliExtra-role.sh" apply "$role" "$project_dir"
 fi
 
 # 启动实例
