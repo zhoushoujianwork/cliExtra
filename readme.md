@@ -65,13 +65,13 @@ cliExtra start --name backend --role backend  # 启动并应用后端工程师�
 # 列出所有实例（简洁格式，每行一个实例ID）
 cliExtra list
 
-# 列出所有实例（JSON格式，包含详细信息）
+# 列出所有实例（JSON格式，包含详细信息和namespace）
 cliExtra list --json
 
-# 显示指定实例的详细信息
+# 显示指定实例的详细信息（包含namespace）
 cliExtra list myinstance
 
-# 显示指定实例的详细信息（JSON格式）
+# 显示指定实例的详细信息（JSON格式，包含namespace）
 cliExtra list myinstance --json
 
 # 查看实例状态
