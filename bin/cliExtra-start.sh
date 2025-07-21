@@ -16,6 +16,7 @@ parse_start_args() {
     local instance_name=""
     local project_path=""
     local role=""
+    local namespace="default"
     
     # 解析参数
     while [[ $# -gt 0 ]]; do
@@ -26,6 +27,10 @@ parse_start_args() {
                 ;;
             --role)
                 role="$2"
+                shift 2
+                ;;
+            --namespace|--ns)
+                namespace="$2"
                 shift 2
                 ;;
             -*)
@@ -50,7 +55,7 @@ parse_start_args() {
         echo "自动生成实例ID: $instance_name" >&2
     fi
     
-    echo "$instance_name|$project_path|$role"
+    echo "$instance_name|$project_path|$role|$namespace"
 }
 
 # 项目初始化
@@ -108,6 +113,7 @@ EOF
 start_tmux_instance() {
     local instance_id="$1"
     local project_dir="$2"
+    local namespace="$3"
     local session_name="q_instance_$instance_id"
     
     # 使用项目的 .cliExtra 目录
@@ -115,7 +121,7 @@ start_tmux_instance() {
     local session_dir="$cliextra_dir/instances/instance_$instance_id"
     local log_file="$cliextra_dir/logs/instance_$instance_id.log"
     
-    echo "$(date): 启动tmux实例 $instance_id 在项目 $project_dir" >> "$log_file"
+    echo "$(date): 启动tmux实例 $instance_id 在项目 $project_dir (namespace: $namespace)" >> "$log_file"
     
     # 创建会话目录
     mkdir -p "$session_dir"
@@ -130,6 +136,7 @@ start_tmux_instance() {
     
     echo "启动tmux q CLI实例 $instance_id"
     echo "项目目录: $project_dir"
+    echo "Namespace: $namespace"
     echo "会话名称: $session_name"
     echo "会话目录: $session_dir"
     echo "日志文件: $log_file"
@@ -153,9 +160,14 @@ start_tmux_instance() {
 INSTANCE_ID="$instance_id"
 PROJECT_DIR="$project_dir"
 SESSION_NAME="$session_name"
+NAMESPACE="$namespace"
 STARTED_AT="$(date)"
 PID="$$"
 EOF
+        
+        # 保存namespace信息
+        echo "$namespace" > "$session_dir/namespace"
+        
     else
         echo "✗ 实例 $instance_id 启动失败"
     fi
@@ -170,7 +182,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # 解析结果
-IFS='|' read -r instance_id project_path role <<< "$args_result"
+IFS='|' read -r instance_id project_path role namespace <<< "$args_result"
 
 # 初始化项目
 project_dir=$(init_project "$project_path")
@@ -186,4 +198,4 @@ if [ -n "$role" ]; then
 fi
 
 # 启动实例
-start_tmux_instance "$instance_id" "$project_dir" 
+start_tmux_instance "$instance_id" "$project_dir" "$namespace" 
