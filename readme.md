@@ -60,8 +60,11 @@ cliExtra start --name backend --role backend  # 启动并应用后端工程师�
 ### 实例管理
 
 ```bash
-# 列出所有实例
+# 列出所有实例（简洁格式，每行一个实例ID）
 cliExtra list
+
+# 列出所有实例（JSON格式，包含详细信息）
+cliExtra list --json
 
 # 查看实例状态
 cliExtra status myproject
