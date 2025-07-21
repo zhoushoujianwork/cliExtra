@@ -187,7 +187,7 @@ fi
 # 应用角色预设（如果指定）
 if [ -n "$role" ]; then
     echo "应用角色预设: $role"
-    "$SCRIPT_DIR/cliExtra-role.sh" apply "$role" "$project_dir"
+    "$SCRIPT_DIR/cliExtra-role.sh" apply "$role"
 fi
 
 # 启动实例

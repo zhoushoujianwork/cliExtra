@@ -47,8 +47,8 @@ show_help() {
     echo "用法:"
     echo "  $0 list                    - 列出所有可用角色"
     echo "  $0 show <role>             - 显示指定角色的预设内容"
-    echo "  $0 apply <role> [project]  - 应用角色预设到项目"
-    echo "  $0 remove [project]        - 移除项目中的角色预设"
+    echo "  $0 apply <role> [instance] [-f] - 应用角色预设到项目或指定实例"
+    echo "  $0 remove [instance]       - 移除项目或指定实例中的角色预设"
     echo "  $0 help                    - 显示此帮助"
     echo ""
     echo "可用角色:"
@@ -60,8 +60,10 @@ show_help() {
     echo "  $0 list                    # 列出所有角色"
     echo "  $0 show frontend           # 显示前端工程师预设"
     echo "  $0 apply frontend          # 在当前项目应用前端工程师角色"
-    echo "  $0 apply backend /path/to/project  # 在指定项目应用后端工程师角色"
+    echo "  $0 apply backend myproject # 在指定实例应用后端工程师角色"
+    echo "  $0 apply devops -f         # 强制应用运维工程师角色（不确认）"
     echo "  $0 remove                  # 移除当前项目的角色预设"
+    echo "  $0 remove myproject        # 移除指定实例的角色预设"
     echo ""
 }
 
@@ -77,37 +79,55 @@ list_roles() {
 
 # 显示角色预设内容
 show_role() {
-    local role="$1"
+    local arg="${1:-.}"
     
-    if [ -z "$role" ]; then
-        echo -e "${RED}错误: 请指定角色名称${NC}"
-        return 1
+    # 如果是角色名
+    if role_exists "$arg"; then
+        local role_file="$(dirname "$(dirname "$0")")/roles/${arg}-engineer.md"
+        if [ ! -f "$role_file" ]; then
+            echo -e "${RED}错误: 角色文件不存在: $role_file${NC}"
+            return 1
+        fi
+        local role_name=$(get_role_name "$arg")
+        echo -e "${BLUE}=== $role_name 角色预设 ===${NC}"
+        echo ""
+        cat "$role_file"
+        echo ""
+        return 0
     fi
     
-    if ! role_exists "$role"; then
-        echo -e "${RED}错误: 未知角色 '$role'${NC}"
-        echo "可用角色: ${ROLE_KEYS[*]}"
-        return 1
+    # 如果是目录
+    if [ -d "$arg" ]; then
+        local rules_dir="$arg/.amazonq/rules"
+        if [ ! -d "$rules_dir" ]; then
+            echo -e "${YELLOW}该目录下没有角色预设${NC}"
+            return 0
+        fi
+        local found_files=("$rules_dir"/*-engineer.md)
+        if [ ! -e "${found_files[0]}" ]; then
+            echo -e "${YELLOW}该目录下没有角色预设${NC}"
+            return 0
+        fi
+        if [ ${#found_files[@]} -gt 1 ]; then
+            echo -e "${YELLOW}警告: 该目录下存在多个角色预设文件，仅显示第一个${NC}"
+        fi
+        local file="${found_files[0]}"
+        local role_key=$(basename "$file" -engineer.md)
+        local role_name=$(get_role_name "$role_key")
+        echo -e "${GREEN}当前角色: $role_name${NC}"
+        return 0
     fi
     
-    local role_file="$(dirname "$(dirname "$0")")/roles/${role}-engineer.md"
-    
-    if [ ! -f "$role_file" ]; then
-        echo -e "${RED}错误: 角色文件不存在: $role_file${NC}"
-        return 1
-    fi
-    
-    local role_name=$(get_role_name "$role")
-    echo -e "${BLUE}=== $role_name 角色预设 ===${NC}"
-    echo ""
-    cat "$role_file"
-    echo ""
+    echo -e "${RED}错误: 未知角色或目录: $arg${NC}"
+    return 1
 }
 
 # 应用角色预设到项目
 apply_role() {
     local role="$1"
-    local project_dir="${2:-.}"
+    local instance_id="$2"
+    local force="$3"
+    local project_dir=""
     
     if [ -z "$role" ]; then
         echo -e "${RED}错误: 请指定角色名称${NC}"
@@ -118,6 +138,19 @@ apply_role() {
         echo -e "${RED}错误: 未知角色 '$role'${NC}"
         echo "可用角色: ${ROLE_KEYS[*]}"
         return 1
+    fi
+    
+    # 如果指定了实例ID，查找对应的项目目录
+    if [ -n "$instance_id" ]; then
+        project_dir=$(find_instance_project "$instance_id")
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}错误: 找不到实例 $instance_id 对应的项目${NC}"
+            return 1
+        fi
+        echo -e "${BLUE}找到实例 $instance_id 的项目目录: $project_dir${NC}"
+    else
+        # 使用当前目录
+        project_dir="."
     fi
     
     # 检查项目目录
@@ -147,6 +180,48 @@ apply_role() {
         mkdir -p "$rules_dir"
     fi
     
+    # 检查是否已有其他角色预设
+    local existing_roles=()
+    for existing_role in "${ROLE_KEYS[@]}"; do
+        local existing_file="$rules_dir/${existing_role}-engineer.md"
+        if [ -f "$existing_file" ]; then
+            existing_roles+=("$existing_role")
+        fi
+    done
+    
+    # 如果已有角色预设，询问是否替换
+    if [ ${#existing_roles[@]} -gt 0 ]; then
+        echo -e "${YELLOW}警告: 项目中已存在角色预设${NC}"
+        for existing_role in "${existing_roles[@]}"; do
+            local existing_name=$(get_role_name "$existing_role")
+            echo -e "  - $existing_name"
+        done
+        echo ""
+        echo -e "${YELLOW}注意: 每个项目建议只保留一个角色预设，多个角色可能导致意图识别混乱${NC}"
+        echo ""
+        
+        # 如果指定了强制模式，直接替换
+        if [ "$force" = "true" ]; then
+            echo -e "${YELLOW}强制模式: 自动替换现有角色预设${NC}"
+        else
+            read -p "是否替换现有角色预设? (y/N): " -n 1 -r
+            echo
+            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+                echo -e "${YELLOW}操作已取消${NC}"
+                return 0
+            fi
+        fi
+        
+        # 移除现有角色预设
+        echo -e "${YELLOW}移除现有角色预设...${NC}"
+        for existing_role in "${existing_roles[@]}"; do
+            local existing_file="$rules_dir/${existing_role}-engineer.md"
+            rm -f "$existing_file"
+            local existing_name=$(get_role_name "$existing_role")
+            echo -e "${GREEN}✓ 已移除: $existing_name${NC}"
+        done
+    fi
+    
     # 复制角色预设文件
     local target_file="$rules_dir/${role}-engineer.md"
     local role_name=$(get_role_name "$role")
@@ -159,7 +234,21 @@ apply_role() {
 
 # 移除项目中的角色预设
 remove_role() {
-    local project_dir="${1:-.}"
+    local instance_id="$1"
+    local project_dir=""
+    
+    # 如果指定了实例ID，查找对应的项目目录
+    if [ -n "$instance_id" ]; then
+        project_dir=$(find_instance_project "$instance_id")
+        if [ $? -ne 0 ]; then
+            echo -e "${RED}错误: 找不到实例 $instance_id 对应的项目${NC}"
+            return 1
+        fi
+        echo -e "${BLUE}找到实例 $instance_id 的项目目录: $project_dir${NC}"
+    else
+        # 使用当前目录
+        project_dir="."
+    fi
     
     # 检查项目目录
     if [ ! -d "$project_dir" ]; then
@@ -195,6 +284,41 @@ remove_role() {
     fi
 }
 
+# 解析参数
+parse_apply_args() {
+    local role=""
+    local instance_id=""
+    local force="false"
+    
+    shift  # 移除 "apply" 参数
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -f|--force)
+                force="true"
+                shift
+                ;;
+            -*)
+                echo "未知参数: $1"
+                return 1
+                ;;
+            *)
+                if [ -z "$role" ]; then
+                    role="$1"
+                elif [ -z "$instance_id" ]; then
+                    instance_id="$1"
+                else
+                    echo "多余的参数: $1"
+                    return 1
+                fi
+                shift
+                ;;
+        esac
+    done
+    
+    echo "$role|$instance_id|$force"
+}
+
 # 主逻辑
 case "${1:-}" in
     "list")
@@ -204,7 +328,13 @@ case "${1:-}" in
         show_role "$2"
         ;;
     "apply")
-        apply_role "$2" "$3"
+        args_result=$(parse_apply_args "$@")
+        if [ $? -ne 0 ]; then
+            echo "参数解析错误"
+            exit 1
+        fi
+        IFS='|' read -r role instance_id force <<< "$args_result"
+        apply_role "$role" "$instance_id" "$force"
         ;;
     "remove")
         remove_role "$2"

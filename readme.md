@@ -11,7 +11,7 @@
 - **实时监控**: 支持实时监控实例输出和日志查看
 - **消息发送**: 可以向运行中的实例发送消息
 - **单个实例清理**: 支持停止和清理单个实例
-- **角色预设管理**: 支持前端、后端、测试、代码审查等角色预设
+- **角色预设管理**: 支持前端、后端、测试、代码审查、运维等角色预设
 - **全局可用**: 安装后可在系统任何位置使用
 
 ## 安装
@@ -90,78 +90,24 @@ cliExtra role list
 
 # 显示角色预设内容
 cliExtra role show frontend
+cliExtra role show           # 显示当前目录的角色（只显示角色名）
+cliExtra role show ./        # 显示指定目录的角色（只显示角色名）
 
-# 应用角色预设到项目
-cliExtra role apply frontend
-cliExtra role apply backend /path/to/project
+# 应用角色预设到项目或实例
+cliExtra role apply frontend             # 当前目录应用前端工程师角色
+cliExtra role apply backend myproject    # 指定实例应用后端工程师角色
 
-# 移除项目中的角色预设
+# 强制应用（不需要确认，适合自动化脚本）
+cliExtra role apply devops -f            # 强制应用运维工程师角色
+cliExtra role apply frontend myproject -f
+cliExtra role apply backend -f myproject # 参数顺序灵活
+
+# 移除项目/实例中的角色预设
 cliExtra role remove
-cliExtra role remove /path/to/project
-```
-```
-
-### 监控和日志
-
-```bash
-# 查看实例日志
-cliExtra logs myproject           # 查看最近50行
-cliExtra logs myproject 20        # 查看最近20行
-
-# 实时监控实例输出
-cliExtra monitor myproject
+cliExtra role remove myproject
 ```
 
-### 配置管理
-
-```bash
-# 交互式配置
-cliExtra config
-
-# 显示当前配置
-cliExtra config show
-
-# 设置配置项
-cliExtra config set CLIEXTRA_HOME "/path/to/home"
-```
-
-## 目录结构
-
-```
-cliExtra/
-├── cliExtra.sh              # 主控制脚本
-├── install.sh               # 安装脚本
-├── uninstall.sh             # 卸载脚本
-├── README.md               # 本文件
-└── bin/                    # 子命令脚本目录
-    ├── cliExtra-common.sh   # 公共函数库
-    ├── cliExtra-config.sh   # 配置管理
-    ├── cliExtra-start.sh    # 启动实例
-    ├── cliExtra-send.sh     # 发送消息
-    ├── cliExtra-attach.sh   # 接管实例
-    ├── cliExtra-stop.sh     # 停止实例
-    ├── cliExtra-list.sh     # 列出实例
-    ├── cliExtra-status.sh   # 查看状态
-    ├── cliExtra-logs.sh     # 查看日志
-    ├── cliExtra-monitor.sh  # 监控输出
-    ├── cliExtra-clean.sh    # 清理实例
-    └── cliExtra-role.sh     # 角色预设管理
-```
-
-## 项目结构
-
-每个项目目录下会创建 `.cliExtra` 目录：
-
-```
-project/
-├── .cliExtra/
-│   ├── config              # 项目配置
-│   ├── instances/          # 实例目录
-│   │   └── instance_123/   # 实例123的会话信息
-│   └── logs/               # 日志目录
-│       └── instance_123.log # 实例123的日志
-└── ... (项目文件)
-```
+**注意**: 每个项目建议只保留一个角色预设，多个角色可能导致意图识别混乱。应用新角色时会自动移除现有角色。
 
 ### 角色预设结构
 
@@ -171,12 +117,15 @@ project/
 project/
 ├── .amazonq/
 │   └── rules/              # Amazon Q规则目录
-│       ├── frontend-engineer.md  # 前端工程师角色预设
-│       ├── backend-engineer.md   # 后端工程师角色预设
-│       ├── test-engineer.md      # 测试工程师角色预设
-│       └── reviewer-engineer.md  # 代码审查工程师角色预设
+│       └── [role]-engineer.md    # 单个角色预设文件
 └── ... (项目文件)
 ```
+
+**重要**: 每个项目只保留一个角色预设，确保意图识别的准确性。应用新角色时会自动替换现有角色。
+
+## 项目结构
+
+每个项目目录下会创建 `.cliExtra` 目录：
 
 ```
 project/
