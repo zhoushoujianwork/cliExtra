@@ -25,6 +25,7 @@ show_help() {
     echo "  $0 clean-all                 - 清理所有实例"
     echo "  $0 role <command>            - 角色预设管理"
     echo "  $0 ns <command>              - namespace管理"
+    echo "  $0 set-ns <id> <namespace>   - 修改实例的namespace"
     echo "  $0 help                      - 显示此帮助"
     echo ""
     echo "启动示例:"
@@ -104,6 +105,9 @@ case "${1:-}" in
         ;;
     "ns")
         "$SCRIPT_DIR/bin/cliExtra-ns.sh" "${@:2}"
+        ;;
+    "set-ns")
+        "$SCRIPT_DIR/bin/cliExtra-set-ns.sh" "${@:2}"
         ;;
     "help"|"")
         show_help
