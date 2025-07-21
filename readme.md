@@ -1,190 +1,186 @@
-# Q Chat Manager
+# cliExtra
 
-基于Amazon Q Developer CLI的智能聊天管理平台，支持多实例管理、实时通信和Markdown富文本显示。
+基于Screen的q CLI实例管理系统
 
-## 🌟 功能特性
+## 功能特点
 
-- 🚀 **多实例管理**: 同时管理多个Q CLI实例
-- 💬 **实时聊天**: WebSocket实时通信，支持@符号选择实例
-- 📝 **Markdown渲染**: 富文本显示，支持代码高亮和格式化
-- 🎨 **美观界面**: 响应式Web界面，系统日志分离显示
-- 🔧 **标准架构**: Flask应用工厂模式，模块化设计
+- **自动生成实例ID**: 支持自动生成随机实例ID，也可自定义实例名
+- **项目级管理**: 每个项目有自己的 `.cliExtra` 目录，状态和日志独立管理
+- **灵活启动**: 支持当前目录、指定目录或Git仓库克隆启动
+- **会话管理**: 基于GNU Screen，支持会话保持和上下文管理
+- **实时监控**: 支持实时监控实例输出和日志查看
+- **消息发送**: 可以向运行中的实例发送消息
+- **单个实例清理**: 支持停止和清理单个实例
+- **全局可用**: 安装后可在系统任何位置使用
 
-## 📋 系统要求
+## 安装
 
-- Python 3.8+
-- Amazon Q Developer CLI
-- 现代浏览器 (Chrome, Firefox, Safari, Edge)
+### 快速安装
 
-## 🚀 快速开始
-
-### 1. 克隆项目
 ```bash
+# 克隆项目
 git clone <repository-url>
 cd cliExtra
+
+# 安装
+./install.sh
 ```
 
-### 2. 安装依赖
+### 手动安装
+
 ```bash
-# 使用启动脚本（推荐）
-./start_new.sh
+# 创建软链接
+sudo ln -sf /path/to/cliExtra/cliExtra.sh /usr/local/bin/cliExtra
 
-# 或手动安装
-python3 -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+# 设置执行权限
+chmod +x /usr/local/bin/cliExtra
 ```
 
-### 3. 启动应用
+## 使用方法
+
+### 启动实例
+
 ```bash
-# 使用启动脚本
-./start_new.sh
+# 自动生成实例ID（推荐）
+cliExtra start                    # 在当前目录启动
+cliExtra start ../                # 在上级目录启动
+cliExtra start /path/to/project   # 在指定目录启动
+cliExtra start https://github.com/user/repo.git  # 克隆并启动
 
-# 或手动启动
-python3 run.py
+# 指定实例名字
+cliExtra start --name myproject   # 在当前目录启动，实例名为myproject
+cliExtra start ../ --name test    # 在上级目录启动，实例名为test
 ```
 
-### 4. 访问应用
-打开浏览器访问: http://localhost:5001
+### 实例管理
 
-## 📁 项目结构
+```bash
+# 列出所有实例
+cliExtra list
+
+# 查看实例状态
+cliExtra status myproject
+
+# 发送消息到实例
+cliExtra send myproject "你好，Q!"
+
+# 接管实例终端
+cliExtra attach myproject
+
+# 停止实例
+cliExtra stop myproject
+
+# 清理单个实例（停止并删除文件）
+cliExtra clean myproject
+
+# 清理所有实例
+cliExtra clean-all
+```
+
+### 监控和日志
+
+```bash
+# 查看实例日志
+cliExtra logs myproject           # 查看最近50行
+cliExtra logs myproject 20        # 查看最近20行
+
+# 实时监控实例输出
+cliExtra monitor myproject
+```
+
+### 配置管理
+
+```bash
+# 交互式配置
+cliExtra config
+
+# 显示当前配置
+cliExtra config show
+
+# 设置配置项
+cliExtra config set CLIEXTRA_HOME "/path/to/home"
+```
+
+## 目录结构
 
 ```
 cliExtra/
-├── app/                    # 应用主目录
-│   ├── models/            # 数据模型
-│   ├── services/          # 业务逻辑
-│   ├── views/             # 视图控制
-│   ├── utils/             # 工具类
-│   ├── static/            # 静态资源
-│   └── templates/         # 模板文件
-├── config/                # 配置管理
-├── run.py                # 应用入口
-├── requirements.txt      # 依赖包
-└── start_new.sh         # 启动脚本
+├── cliExtra.sh              # 主控制脚本
+├── install.sh               # 安装脚本
+├── uninstall.sh             # 卸载脚本
+├── README.md               # 本文件
+└── bin/                    # 子命令脚本目录
+    ├── cliExtra-common.sh   # 公共函数库
+    ├── cliExtra-config.sh   # 配置管理
+    ├── cliExtra-start.sh    # 启动实例
+    ├── cliExtra-send.sh     # 发送消息
+    ├── cliExtra-attach.sh   # 接管实例
+    ├── cliExtra-stop.sh     # 停止实例
+    ├── cliExtra-list.sh     # 列出实例
+    ├── cliExtra-status.sh   # 查看状态
+    ├── cliExtra-logs.sh     # 查看日志
+    ├── cliExtra-monitor.sh  # 监控输出
+    └── cliExtra-clean.sh    # 清理实例
 ```
 
-## 🎯 使用方法
+## 项目结构
 
-### 启动Q CLI实例
-1. 在左侧面板输入实例ID
-2. 点击"启动"按钮
-3. 等待实例启动完成
+每个项目目录下会创建 `.cliExtra` 目录：
 
-### 发送消息
-1. 在消息输入框中输入 `@实例1 你的问题`
-2. 按回车发送消息
-3. 查看格式化的回复
+```
+project/
+├── .cliExtra/
+│   ├── config              # 项目配置
+│   ├── instances/          # 实例目录
+│   │   └── instance_123/   # 实例123的会话信息
+│   └── logs/               # 日志目录
+│       └── instance_123.log # 实例123的日志
+└── ... (项目文件)
+```
 
-### 查看系统日志
-- 右侧面板显示系统操作日志
-- 可以清空日志记录
+## Screen操作
 
-## 🔧 配置选项
+- **接管会话**: `screen -r q_instance_<id>`
+- **分离会话**: 在会话中按 `Ctrl+A, D`
+- **查看所有**: `screen -list`
 
-### 环境变量
+## 卸载
+
 ```bash
-export FLASK_ENV=development  # 开发环境
-export FLASK_DEBUG=1         # 调试模式
-export SECRET_KEY=your-secret-key  # 生产环境密钥
+# 使用卸载脚本
+./uninstall.sh
+
+# 或手动删除软链接
+sudo rm -f /usr/local/bin/cliExtra
 ```
 
-### 应用配置
-在 `config/config.py` 中修改：
-- `MAX_INSTANCES`: 最大实例数量
-- `MAX_CHAT_HISTORY`: 聊天历史记录数量
-- `Q_CLI_TIMEOUT`: Q CLI超时时间
+## 故障排除
 
-## 📝 Markdown支持
+### 命令不可用
+如果安装后 `cliExtra` 命令不可用：
+1. 检查PATH环境变量是否包含安装目录
+2. 运行 `source ~/.zshrc` 或 `source ~/.bashrc`
+3. 重新打开终端
 
-支持完整的Markdown语法：
-- 标题 (H1-H3)
-- **粗体** 和 *斜体*
-- `行内代码` 和代码块
-- 列表和链接
-- 语法高亮
-
-## 🔌 API接口
-
-### 实例管理
-- `GET /api/instances` - 获取实例列表
-- `POST /api/start/<id>` - 启动实例
-- `POST /api/stop/<id>` - 停止实例
-- `POST /api/clean` - 清理所有实例
-
-### 消息管理
-- `POST /api/send` - 发送消息
-- `GET /api/chat/history` - 获取聊天历史
-- `GET /api/logs/system` - 获取系统日志
-
-## 🧪 开发指南
-
-### 添加新功能
-1. **模型**: 在 `app/models/` 中定义数据结构
-2. **服务**: 在 `app/services/` 中实现业务逻辑
-3. **视图**: 在 `app/views/` 中添加路由
-4. **模板**: 在 `app/templates/` 中创建页面
-
-### 运行测试
+### 权限问题
+如果遇到权限问题：
 ```bash
-# 激活虚拟环境
-source venv/bin/activate
-
-# 运行测试
-python -m pytest tests/
+sudo ./install.sh
 ```
 
-## 🐛 故障排除
-
-### 常见问题
-
-**Q CLI未找到**
+### 软链接问题
+如果软链接有问题：
 ```bash
-# 确保Q CLI已安装
-q --version
-
-# 如果未安装，请参考官方文档安装
+sudo rm -f /usr/local/bin/cliExtra
+sudo ln -sf /path/to/cliExtra/cliExtra.sh /usr/local/bin/cliExtra
 ```
 
-**端口被占用**
-```bash
-# 修改 run.py 中的端口号
-socketio.run(app, port=5002)
-```
+## 依赖
 
-**依赖安装失败**
-```bash
-# 升级pip
-pip install --upgrade pip
+- **GNU Screen**: 会话管理
+- **Git**: 仓库克隆（可选）
+- **Bash**: 脚本执行
 
-# 重新安装依赖
-pip install -r requirements.txt
-```
+## 许可证
 
-## 🤝 贡献指南
-
-1. Fork 项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建 Pull Request
-
-## 📄 许可证
-
-本项目采用 MIT 许可证 - 查看 [LICENSE](LICENSE) 文件了解详情
-
-## 🙏 致谢
-
-- [Amazon Q Developer CLI](https://github.com/aws/amazon-q-developer-cli)
-- [Flask](https://flask.palletsprojects.com/)
-- [Socket.IO](https://socket.io/)
-- [Bootstrap](https://getbootstrap.com/)
-
-## 📞 联系方式
-
-如有问题或建议，请创建 Issue 或联系项目维护者。
-
----
-
-**项目状态**: ✅ 稳定版本  
-**最后更新**: 2025-07-18
+[许可证信息]
