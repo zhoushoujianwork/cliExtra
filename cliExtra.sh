@@ -27,6 +27,7 @@ show_help() {
     echo "  $0 ns <command>              - namespace管理"
     echo "  $0 set-ns <id> <namespace>   - 修改实例的namespace"
     echo "  $0 broadcast <message>       - 广播消息到实例"
+    echo "  $0 tools <command>           - 工具管理"
     echo "  $0 help                      - 显示此帮助"
     echo ""
     echo "启动示例:"
@@ -54,6 +55,7 @@ show_help() {
     echo "  $0 ns show                   # 显示所有namespace"
     echo "  $0 set-ns myinstance backend # 将实例移动到backend namespace"
     echo "  $0 broadcast \"系统维护通知\"   # 广播消息到所有实例"
+    echo "  $0 tools add git             # 添加git工具到当前项目"
     echo ""
     echo "tmux操作:"
     echo "  接管会话: tmux attach-session -t q_instance_<id>"
@@ -118,6 +120,9 @@ case "${1:-}" in
         ;;
     "broadcast")
         "$SCRIPT_DIR/bin/cliExtra-broadcast.sh" "${@:2}"
+        ;;
+    "tools")
+        "$SCRIPT_DIR/bin/cliExtra-tools.sh" "${@:2}"
         ;;
     "help"|"")
         show_help

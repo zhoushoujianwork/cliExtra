@@ -143,6 +143,31 @@ cliExtra start --name api --ns backend
 cliExtra set-ns myinstance backend  # 将实例移动到backend namespace
 ```
 
+### 工具管理
+
+```bash
+# 查看所有可用工具
+cliExtra tools list
+
+# 显示工具详细信息
+cliExtra tools show git
+cliExtra tools show dingtalk
+
+# 添加工具到当前项目
+cliExtra tools add git              # 添加git工具
+cliExtra tools add dingtalk         # 添加钉钉工具
+
+# 移除项目中的工具
+cliExtra tools remove git           # 移除git工具
+cliExtra tools remove dingtalk      # 移除钉钉工具
+
+# 查看当前项目已安装的工具
+cliExtra tools installed
+
+# 指定项目路径操作工具
+cliExtra tools add git --project /path/to/project
+```
+
 ### 实例协作
 
 ```bash
@@ -224,7 +249,9 @@ project/
 │       ├── backend-engineer.md     # 后端工程师角色预设
 │       ├── devops-engineer.md      # 运维工程师角色预设
 │       ├── cliextra-collaboration.md # 协作增强规则
-│       └── role-boundaries.md      # 角色边界规则
+│       ├── role-boundaries.md      # 角色边界规则
+│       ├── tools_git.md            # Git工具能力（自动安装）
+│       └── tools_dingtalk.md       # 钉钉工具能力（手动添加）
 └── ... (项目文件)
 ```
 
@@ -232,6 +259,7 @@ project/
 - `.amazonq/rules` 目录在每次启动实例时自动从 `cliExtra/rules` 同步
 - 每个项目都有独立的rules副本，确保项目间的隔离
 - rules文件包含协作感知能力和角色边界管理
+- 工具文件以 `tools_` 前缀命名，支持动态添加和移除
 
 ## tmux操作
 

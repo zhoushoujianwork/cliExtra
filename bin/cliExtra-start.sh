@@ -109,6 +109,26 @@ EOF
     echo "$target_dir"
 }
 
+# 安装默认工具到项目
+install_default_tools() {
+    local project_dir="$1"
+    local tools_script="$SCRIPT_DIR/cliExtra-tools.sh"
+    
+    echo "安装默认工具到项目..."
+    
+    # 默认安装的工具列表
+    local default_tools=("git")
+    
+    for tool in "${default_tools[@]}"; do
+        echo "  安装工具: $tool"
+        if "$tools_script" add "$tool" --project "$project_dir" >/dev/null 2>&1; then
+            echo "  ✓ $tool 安装成功"
+        else
+            echo "  ⚠ $tool 安装失败或已存在"
+        fi
+    done
+}
+
 # 同步rules到项目目录
 sync_rules_to_project() {
     local project_dir="$1"
@@ -158,6 +178,9 @@ start_tmux_instance() {
     
     # 同步rules到项目目录
     sync_rules_to_project "$project_dir"
+    
+    # 安装默认工具
+    install_default_tools "$project_dir"
     
     # 检查实例是否已经在运行
     if tmux has-session -t "$session_name" 2>/dev/null; then
