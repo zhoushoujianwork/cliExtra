@@ -90,7 +90,14 @@ cliExtra stop myproject
 cliExtra clean myproject
 
 # 清理所有实例
-cliExtra clean-all
+cliExtra clean all
+
+# 清理指定namespace中的所有实例
+cliExtra clean all --namespace frontend
+
+# 预览将要清理的实例（不实际执行）
+cliExtra clean all --dry-run
+cliExtra clean all --namespace backend --dry-run
 ```
 
 ### 角色预设管理
