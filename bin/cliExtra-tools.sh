@@ -34,7 +34,7 @@ show_help() {
 
 # 获取tools源目录
 get_tools_source_dir() {
-    echo "$SCRIPT_DIR/../tools"
+    echo "$CLIEXTRA_TOOLS_SOURCE_DIR"
 }
 
 # 获取项目目录
@@ -52,7 +52,7 @@ get_project_dir() {
 # 获取项目的tools目录
 get_project_tools_dir() {
     local project_dir="$1"
-    echo "$project_dir/.amazonq/rules"
+    echo "$project_dir/$CLIEXTRA_PROJECT_CONFIG_DIR/$CLIEXTRA_PROJECT_RULES_DIR"
 }
 
 # 列出所有可用工具

@@ -191,13 +191,13 @@ init_project() {
     elif [[ "$project_path" == http*://* ]]; then
         # Git URL 处理
         local repo_name=$(basename "$project_path" .git)
-        target_dir="$CLIEXTRA_HOME/projects/$repo_name"
+        target_dir="$CLIEXTRA_PROJECTS_DIR/$repo_name"
         
         if [ -d "$target_dir" ]; then
             echo "项目已存在: $target_dir"
         else
             echo "正在克隆项目: $project_path"
-            mkdir -p "$CLIEXTRA_HOME/projects"
+            mkdir -p "$CLIEXTRA_PROJECTS_DIR"
             if git clone "$project_path" "$target_dir"; then
                 echo "✓ 项目克隆成功: $target_dir"
             else
@@ -308,10 +308,10 @@ start_tmux_instance() {
     local session_name="q_instance_$instance_id"
     
     # 使用工作目录统一管理所有实例信息
-    local ns_dir="$CLIEXTRA_HOME/namespaces/$namespace"
-    local session_dir="$ns_dir/instances/instance_$instance_id"
-    local log_file="$ns_dir/logs/instance_$instance_id.log"
-    local conversation_file="$ns_dir/conversations/instance_$instance_id.json"
+    local ns_dir="$(get_namespace_dir "$namespace")"
+    local session_dir="$(get_instance_dir "$instance_id" "$namespace")"
+    local log_file="$(get_instance_log_dir "$namespace")/instance_$instance_id.log"
+    local conversation_file="$(get_instance_conversation_dir "$namespace")/instance_$instance_id.json"
     local ns_cache_file="$ns_dir/namespace_cache.json"
     
     # 创建namespace目录结构

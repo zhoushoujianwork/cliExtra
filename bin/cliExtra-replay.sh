@@ -154,7 +154,7 @@ replay_namespace_history() {
     local since="$4"
     local limit="$5"
     
-    local cache_file="$project_dir/.cliExtra/namespaces/$namespace/namespace_cache.json"
+    local cache_file="$(get_namespace_dir "$namespace")/namespace_cache.json"
     
     if [[ ! -f "$cache_file" ]]; then
         echo "错误: 未找到namespace $namespace 的消息历史"

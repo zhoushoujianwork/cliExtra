@@ -33,7 +33,7 @@ record_broadcast_to_cache() {
     local timestamp="$4"
     local target_instances="$5"
     
-    local cache_file="$project_dir/.cliExtra/namespaces/$namespace/namespace_cache.json"
+    local cache_file="$(get_namespace_dir "$namespace")/namespace_cache.json"
     
     # 确保缓存文件存在
     if [[ ! -f "$cache_file" ]]; then
@@ -76,7 +76,7 @@ record_broadcast_to_conversations() {
         if [[ $? -eq 0 ]]; then
             # 获取实例namespace
             local namespace=$(get_instance_namespace_from_project "$project_dir" "$instance_id")
-            local conversation_file="$project_dir/.cliExtra/namespaces/$namespace/conversations/instance_$instance_id.json"
+            local conversation_file="$(get_instance_conversation_dir "$namespace")/instance_$instance_id.json"
             
             # 确保对话文件存在
             if [[ ! -f "$conversation_file" ]]; then

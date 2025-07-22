@@ -114,7 +114,7 @@ show_role() {
     
     # 如果是目录
     if [ -d "$arg" ]; then
-        local rules_dir="$arg/.amazonq/rules"
+        local rules_dir="$(get_project_rules_dir "$arg")"
         if [ ! -d "$rules_dir" ]; then
             echo -e "${YELLOW}该目录下没有角色预设${NC}"
             return 0
@@ -182,15 +182,15 @@ apply_role() {
         return 1
     fi
     
-    # 创建.amazonq目录（如果不存在）
-    local amazonq_dir="$project_dir/.amazonq"
+    # 创建项目配置目录（如果不存在）
+    local amazonq_dir="$(get_project_config_dir "$project_dir")"
     if [ ! -d "$amazonq_dir" ]; then
-        echo -e "${YELLOW}创建.amazonq目录: $amazonq_dir${NC}"
+        echo -e "${YELLOW}创建项目配置目录: $amazonq_dir${NC}"
         mkdir -p "$amazonq_dir"
     fi
     
     # 创建rules目录（如果不存在）
-    local rules_dir="$amazonq_dir/rules"
+    local rules_dir="$(get_project_rules_dir "$project_dir")"
     if [ ! -d "$rules_dir" ]; then
         echo -e "${YELLOW}创建rules目录: $rules_dir${NC}"
         mkdir -p "$rules_dir"
@@ -281,7 +281,7 @@ remove_role() {
         return 1
     fi
     
-    local rules_dir="$project_dir/.amazonq/rules"
+    local rules_dir="$(get_project_rules_dir "$project_dir")"
     
     if [ ! -d "$rules_dir" ]; then
         echo -e "${YELLOW}项目中没有角色预设${NC}"

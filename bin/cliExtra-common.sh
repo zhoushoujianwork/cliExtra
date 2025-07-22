@@ -1,44 +1,32 @@
 #!/bin/bash
 
 # cliExtra 公共函数库
+# 加载统一配置并提供公共函数
 
-# 颜色定义
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+# 加载统一配置
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/cliExtra-config.sh"
 
-# 加载全局配置
-load_config() {
-    # 默认配置
-    CLIEXTRA_HOME="$HOME/Library/Application Support/cliExtra"
-    
-    # 尝试加载用户配置
-    if [ -f "$HOME/.cliExtra/config" ]; then
-        source "$HOME/.cliExtra/config"
-    fi
-    
-    # 确保目录存在
-    mkdir -p "$CLIEXTRA_HOME"
-}
+# =============================================================================
+# 实例查找和管理函数
+# =============================================================================
 
 # 查找实例的项目目录
 find_instance_project() {
     local instance_id="$1"
     
     # 从工作目录的namespace结构中查找实例
-    if [ -d "$CLIEXTRA_HOME/namespaces" ]; then
-        for ns_dir in "$CLIEXTRA_HOME/namespaces"/*; do
-            local instance_dir="$ns_dir/instances/instance_$instance_id"
+    if [ -d "$CLIEXTRA_NAMESPACES_DIR" ]; then
+        for ns_dir in "$CLIEXTRA_NAMESPACES_DIR"/*; do
+            local instance_dir="$ns_dir/$CLIEXTRA_INSTANCES_SUBDIR/instance_$instance_id"
             if [ -d "$instance_dir" ]; then
                 # 读取项目路径引用
-                if [ -f "$instance_dir/project_path" ]; then
-                    cat "$instance_dir/project_path"
+                if [ -f "$instance_dir/$CLIEXTRA_PROJECT_PATH_FILE" ]; then
+                    cat "$instance_dir/$CLIEXTRA_PROJECT_PATH_FILE"
                     return 0
-                elif [ -f "$instance_dir/info" ]; then
+                elif [ -f "$instance_dir/$CLIEXTRA_INSTANCE_INFO_FILE" ]; then
                     # 从info文件中提取项目路径
-                    source "$instance_dir/info"
+                    source "$instance_dir/$CLIEXTRA_INSTANCE_INFO_FILE"
                     echo "$PROJECT_DIR"
                     return 0
                 fi
@@ -53,31 +41,15 @@ find_instance_project() {
         return 0
     fi
     
-    # 搜索当前目录 - 旧的namespace结构
-    if [ -d ".cliExtra/namespaces" ]; then
-        for ns_dir in .cliExtra/namespaces/*; do
-            if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
-                echo "$(pwd)"
-                return 0
-            fi
-        done
-    fi
-    
-    # 搜索用户主目录 - 旧结构
-    if [ -d "$HOME/.cliExtra/instances/instance_$instance_id" ]; then
-        echo "$HOME"
-        return 0
-    fi
-    
-    # 搜索用户主目录 - 旧的namespace结构
-    if [ -d "$HOME/.cliExtra/namespaces" ]; then
-        for ns_dir in "$HOME/.cliExtra/namespaces"/*; do
-            if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
-                echo "$HOME"
-                return 0
-            fi
-        done
-    fi
+    # 搜索父目录 - 旧的结构
+    local current_dir="$(pwd)"
+    while [ "$current_dir" != "/" ]; do
+        if [ -d "$current_dir/.cliExtra/instances/instance_$instance_id" ]; then
+            echo "$current_dir"
+            return 0
+        fi
+        current_dir="$(dirname "$current_dir")"
+    done
     
     return 1
 }
@@ -87,44 +59,11 @@ find_instance_info_dir() {
     local instance_id="$1"
     
     # 从工作目录的namespace结构中查找实例
-    if [ -d "$CLIEXTRA_HOME/namespaces" ]; then
-        for ns_dir in "$CLIEXTRA_HOME/namespaces"/*; do
-            local instance_dir="$ns_dir/instances/instance_$instance_id"
+    if [ -d "$CLIEXTRA_NAMESPACES_DIR" ]; then
+        for ns_dir in "$CLIEXTRA_NAMESPACES_DIR"/*; do
+            local instance_dir="$ns_dir/$CLIEXTRA_INSTANCES_SUBDIR/instance_$instance_id"
             if [ -d "$instance_dir" ]; then
                 echo "$instance_dir"
-                return 0
-            fi
-        done
-    fi
-    
-    # 向后兼容：搜索旧的结构
-    # 搜索当前目录 - 旧的结构
-    if [ -d ".cliExtra/instances/instance_$instance_id" ]; then
-        echo ".cliExtra/instances/instance_$instance_id"
-        return 0
-    fi
-    
-    # 搜索当前目录 - 旧的namespace结构
-    if [ -d ".cliExtra/namespaces" ]; then
-        for ns_dir in .cliExtra/namespaces/*; do
-            if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
-                echo "$ns_dir/instances/instance_$instance_id"
-                return 0
-            fi
-        done
-    fi
-    
-    # 搜索用户主目录 - 旧结构
-    if [ -d "$HOME/.cliExtra/instances/instance_$instance_id" ]; then
-        echo "$HOME/.cliExtra/instances/instance_$instance_id"
-        return 0
-    fi
-    
-    # 搜索用户主目录 - 旧的namespace结构
-    if [ -d "$HOME/.cliExtra/namespaces" ]; then
-        for ns_dir in "$HOME/.cliExtra/namespaces"/*; do
-            if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
-                echo "$ns_dir/instances/instance_$instance_id"
                 return 0
             fi
         done
@@ -133,5 +72,159 @@ find_instance_info_dir() {
     return 1
 }
 
-# 初始化配置
-load_config 
+# 查找实例的namespace
+find_instance_namespace() {
+    local instance_id="$1"
+    
+    # 从工作目录的namespace结构中查找实例
+    if [ -d "$CLIEXTRA_NAMESPACES_DIR" ]; then
+        for ns_dir in "$CLIEXTRA_NAMESPACES_DIR"/*; do
+            local ns_name=$(basename "$ns_dir")
+            local instance_dir="$ns_dir/$CLIEXTRA_INSTANCES_SUBDIR/instance_$instance_id"
+            if [ -d "$instance_dir" ]; then
+                echo "$ns_name"
+                return 0
+            fi
+        done
+    fi
+    
+    # 默认返回 default namespace
+    echo "$CLIEXTRA_DEFAULT_NS"
+    return 0
+}
+
+# =============================================================================
+# 日志和输出函数
+# =============================================================================
+
+# 日志函数
+log_info() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] INFO: $*" >> "$CLIEXTRA_MAIN_LOG"
+}
+
+log_error() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ERROR: $*" >> "$CLIEXTRA_ERROR_LOG"
+    echo -e "${RED}错误: $*${NC}" >&2
+}
+
+log_warn() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] WARN: $*" >> "$CLIEXTRA_MAIN_LOG"
+    echo -e "${YELLOW}警告: $*${NC}" >&2
+}
+
+log_success() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] SUCCESS: $*" >> "$CLIEXTRA_MAIN_LOG"
+    echo -e "${GREEN}✓ $*${NC}"
+}
+
+# =============================================================================
+# 实用工具函数
+# =============================================================================
+
+# 检查命令是否存在
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# 检查tmux会话是否存在
+tmux_session_exists() {
+    local session_name="$1"
+    tmux has-session -t "$session_name" 2>/dev/null
+}
+
+# 生成随机ID
+generate_random_id() {
+    local length="${1:-4}"
+    LC_ALL=C tr -dc '0-9' < /dev/urandom | head -c "$length"
+}
+
+# 获取当前时间戳
+get_timestamp() {
+    date +%s
+}
+
+# 格式化时间戳
+format_timestamp() {
+    local timestamp="$1"
+    date -d "@$timestamp" '+%Y-%m-%d %H:%M:%S' 2>/dev/null || date -r "$timestamp" '+%Y-%m-%d %H:%M:%S'
+}
+
+# =============================================================================
+# 文件操作函数
+# =============================================================================
+
+# 安全创建目录
+safe_mkdir() {
+    local dir="$1"
+    if [ ! -d "$dir" ]; then
+        mkdir -p "$dir" || {
+            log_error "无法创建目录: $dir"
+            return 1
+        }
+    fi
+}
+
+# 安全删除文件
+safe_remove() {
+    local path="$1"
+    if [ -e "$path" ]; then
+        rm -rf "$path" || {
+            log_error "无法删除: $path"
+            return 1
+        }
+    fi
+}
+
+# 备份文件
+backup_file() {
+    local file="$1"
+    local backup_suffix="${2:-.bak}"
+    
+    if [ -f "$file" ]; then
+        cp "$file" "$file$backup_suffix" || {
+            log_error "无法备份文件: $file"
+            return 1
+        }
+        log_info "文件已备份: $file -> $file$backup_suffix"
+    fi
+}
+
+# =============================================================================
+# 向后兼容函数
+# =============================================================================
+
+# 保持向后兼容的 load_config 函数
+load_config() {
+    load_user_config
+}
+
+# 向后兼容的颜色变量（已在配置文件中定义）
+# RED, GREEN, YELLOW, BLUE, NC 等已在 cliExtra-config.sh 中定义
+
+# =============================================================================
+# 初始化检查
+# =============================================================================
+
+# 检查必要的命令
+check_dependencies() {
+    local missing_deps=()
+    
+    if ! command_exists tmux; then
+        missing_deps+=("tmux")
+    fi
+    
+    if ! command_exists q; then
+        missing_deps+=("Amazon Q CLI")
+    fi
+    
+    if [ ${#missing_deps[@]} -gt 0 ]; then
+        log_error "缺少必要的依赖: ${missing_deps[*]}"
+        echo "请安装缺少的依赖后重试"
+        return 1
+    fi
+    
+    return 0
+}
+
+# 自动执行依赖检查（可选）
+# check_dependencies
