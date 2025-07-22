@@ -49,22 +49,36 @@ resume_instance() {
     echo "  Namespace: $namespace"
     
     # 读取历史对话记录
-    local conversation_file="$WORK_DIR/namespaces/$namespace/conversations/instance_$instance_id.json"
+    local conversation_file="$CLIEXTRA_NAMESPACES_DIR/$namespace/conversations/instance_$instance_id.json"
     local context_messages=""
     
     if [ -f "$conversation_file" ]; then
-        # 提取最近的对话作为上下文
-        local recent_messages=$(tail -n 10 "$conversation_file" | jq -r '.messages[]? | select(.role == "user" or .role == "assistant") | "\(.timestamp): \(.content)"' 2>/dev/null || echo "")
+        echo "读取历史对话记录..."
+        # 提取用户消息和广播消息作为上下文
+        local recent_messages=$(jq -r '.conversations[]? | select(.type == "message" or .type == "broadcast") | "[\(.timestamp)] \(if .type == "message" then "用户" else "广播" end): \(.message)"' "$conversation_file" 2>/dev/null || echo "")
+        
         if [ -n "$recent_messages" ]; then
-            context_messages="根据历史对话记录，我们之前讨论了以下内容：\n$recent_messages\n\n请继续我们的对话。"
+            # 构建上下文消息
+            context_messages="根据我们之前的对话记录，请继续我们的讨论：
+
+=== 历史对话记录 ===
+$recent_messages
+
+=== 继续对话 ===
+请基于以上历史记录继续我们的对话。"
+            echo "找到 $(echo "$recent_messages" | wc -l) 条历史消息"
+        else
+            echo "未找到有效的历史消息"
         fi
+    else
+        echo "未找到对话记录文件: $conversation_file"
     fi
     
     # 重新启动实例
     echo "重新启动 tmux 会话..."
     
     # 创建新的 tmux 会话
-    local tmux_log_file="$WORK_DIR/namespaces/$namespace/logs/instance_${instance_id}_tmux.log"
+    local tmux_log_file="$CLIEXTRA_NAMESPACES_DIR/$namespace/logs/instance_${instance_id}_tmux.log"
     
     tmux new-session -d -s "$session_name" -c "$project_path"
     
@@ -72,10 +86,12 @@ resume_instance() {
     if [ -n "$context_messages" ]; then
         echo "载入历史上下文..."
         tmux send-keys -t "$session_name" "q chat" Enter
-        sleep 2
-        # 发送上下文消息
-        echo -e "$context_messages" | tmux send-keys -t "$session_name" -l
-        tmux send-keys -t "$session_name" Enter
+        sleep 3
+        
+        # 直接发送完整的上下文消息
+        tmux send-keys -t "$session_name" "$context_messages" Enter
+        
+        echo "历史上下文已载入"
     else
         # 直接启动 q chat
         tmux send-keys -t "$session_name" "q chat" Enter
@@ -165,11 +181,14 @@ parse_start_args() {
         esac
     done
     
-    # 如果指定了 --context，标记为恢复模式
-    if [ -n "$context_instance" ]; then
+    # 如果指定了 --context 但没有指定 --name，则恢复指定的实例
+    if [ -n "$context_instance" ] && [ -z "$instance_name" ]; then
         echo "RESUME|$context_instance"
         return 0
     fi
+    
+    # 如果同时指定了 --name 和 --context，则创建新实例并加载上下文
+    # 这种情况下，context_instance 会在后续的 start_instance 函数中使用
     
     # 如果没有指定实例名字，生成一个
     if [ -z "$instance_name" ]; then
@@ -177,7 +196,7 @@ parse_start_args() {
         echo "自动生成实例ID: $instance_name" >&2
     fi
     
-    echo "$instance_name|$project_path|$role|$namespace"
+    echo "$instance_name|$project_path|$role|$namespace|$context_instance"
 }
 
 # 项目初始化
@@ -318,10 +337,61 @@ sync_rules_to_project() {
         echo "⚠ rules同步失败或源目录为空"
     fi
 }
+# 从指定实例加载历史上下文
+load_context_from_instance() {
+    local session_name="$1"
+    local context_instance="$2"
+    
+    # 查找上下文实例的 namespace
+    local context_instance_dir=$(find_instance_info_dir "$context_instance")
+    if [ -z "$context_instance_dir" ]; then
+        echo "警告: 未找到上下文实例 $context_instance"
+        return 1
+    fi
+    
+    # 获取上下文实例的 namespace
+    local context_namespace=$(find_instance_namespace "$context_instance")
+    if [ -z "$context_namespace" ]; then
+        echo "警告: 无法确定上下文实例的 namespace"
+        return 1
+    fi
+    
+    # 读取历史对话记录
+    local conversation_file="$CLIEXTRA_NAMESPACES_DIR/$context_namespace/conversations/instance_$context_instance.json"
+    
+    if [ -f "$conversation_file" ]; then
+        echo "读取历史对话记录..."
+        # 提取用户消息和广播消息作为上下文
+        local recent_messages=$(jq -r '.conversations[]? | select(.type == "message" or .type == "broadcast") | "[\(.timestamp)] \(if .type == "message" then "用户" else "广播" end): \(.message)"' "$conversation_file" 2>/dev/null || echo "")
+        
+        if [ -n "$recent_messages" ]; then
+            # 构建上下文消息
+            local context_messages="根据我们之前的对话记录，请继续我们的讨论：
+
+=== 历史对话记录 ===
+$recent_messages
+
+=== 继续对话 ===
+请基于以上历史记录继续我们的对话。"
+            
+            echo "找到 $(echo "$recent_messages" | wc -l) 条历史消息"
+            
+            # 发送上下文消息到 tmux 会话
+            tmux send-keys -t "$session_name" "$context_messages" Enter
+            echo "历史上下文已载入"
+        else
+            echo "未找到有效的历史消息"
+        fi
+    else
+        echo "未找到对话记录文件: $conversation_file"
+    fi
+}
+
 start_tmux_instance() {
     local instance_id="$1"
     local project_dir="$2"
     local namespace="$3"
+    local context_instance="$4"
     local session_name="q_instance_$instance_id"
     
     # 使用工作目录统一管理所有实例信息
@@ -393,6 +463,12 @@ EOF
     # 等待一下确保会话启动
     sleep 3
     
+    # 如果指定了上下文实例，加载其历史对话
+    if [ -n "$context_instance" ]; then
+        echo "加载实例 $context_instance 的历史上下文..."
+        load_context_from_instance "$session_name" "$context_instance"
+    fi
+    
     if tmux has-session -t "$session_name" 2>/dev/null; then
         echo "✓ 实例 $instance_id 已启动"
         echo "接管会话: tmux attach-session -t $session_name"
@@ -440,7 +516,7 @@ if [[ "$args_result" == RESUME\|* ]]; then
 fi
 
 # 解析结果
-IFS='|' read -r instance_id project_path role namespace <<< "$args_result"
+IFS='|' read -r instance_id project_path role namespace context_instance <<< "$args_result"
 
 # 初始化项目
 project_dir=$(init_project "$project_path")
@@ -456,4 +532,4 @@ if [ -n "$role" ]; then
 fi
 
 # 启动实例
-start_tmux_instance "$instance_id" "$project_dir" "$namespace" 
+start_tmux_instance "$instance_id" "$project_dir" "$namespace" "$context_instance" 
