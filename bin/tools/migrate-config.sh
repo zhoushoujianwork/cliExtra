@@ -7,7 +7,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 加载配置
-source "$SCRIPT_DIR/cliExtra-config.sh"
+source "$SCRIPT_DIR/../cliExtra-config.sh"
 
 echo "=== cliExtra 配置迁移工具 ==="
 echo "工作目录: $CLIEXTRA_HOME"

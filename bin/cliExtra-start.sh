@@ -229,6 +229,23 @@ update_namespace_cache() {
     # 使用jq更新缓存文件
     if command -v jq >/dev/null 2>&1; then
         local temp_file=$(mktemp)
+        
+        # 首先确保文件存在且结构正确
+        if [[ ! -f "$cache_file" ]]; then
+            cat > "$cache_file" << EOF
+{
+  "namespace": "default",
+  "created_at": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "instances": {},
+  "message_history": []
+}
+EOF
+        fi
+        
+        # 修复可能损坏的instances字段（如果是数组，转换为对象）
+        jq 'if .instances | type == "array" then .instances = {} else . end' "$cache_file" > "$temp_file" && mv "$temp_file" "$cache_file"
+        
+        # 现在安全地更新缓存
         jq --arg instance_id "$instance_id" \
            --arg action "$action" \
            --arg timestamp "$timestamp" \
@@ -368,7 +385,7 @@ EOF
     echo "对话记录: $conversation_file"
     
     # 启动tmux会话，在项目目录中运行
-    tmux new-session -d -s "$session_name" -c "$project_dir" "q chat --resume --trust-all-tools"
+    tmux new-session -d -s "$session_name" -c "$project_dir" "q chat --trust-all-tools"
     
     # 启用tmux日志记录
     tmux pipe-pane -t "$session_name" -o "cat >> '$session_dir/tmux.log'"
