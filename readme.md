@@ -169,9 +169,9 @@ qq ns show                    # 显示所有namespace
 qq ns show frontend           # 显示frontend namespace详情
 qq ns show -o json            # JSON格式输出
 
-# 删除namespace
-qq ns delete frontend         # 删除空的namespace
-qq ns delete backend --force  # 强制删除（停止其中的实例）
+# 删除namespace（完全清理）
+qq ns delete frontend         # 删除 namespace 及所有相关目录和文件
+qq ns delete backend --force  # 强制删除（停止其中的实例并清理所有数据）
 
 # 启动实例到指定namespace
 qq start --namespace frontend
@@ -363,6 +363,8 @@ cliExtra 采用工作目录统一管理的方式，所有实例信息都存储�
 3. **跨项目协作**: 不同项目的实例可以在同一namespace中协作
 4. **系统级服务**: 支持系统级的实例管理和监控
 5. **向后兼容**: 保持对旧版本目录结构的兼容性
+6. **完整清理**: namespace 删除时完全清理所有相关目录和文件
+7. **安全保护**: 防止误删默认 namespace，支持强制删除模式
 
 ## tmux操作
 
