@@ -117,6 +117,9 @@ qq stop myproject
 qq resume myproject
 qq start --context myproject  # 等效命令
 
+# 创建新实例并加载指定实例的历史上下文
+qq start --name new-instance --context old-instance
+
 # 清理单个实例（停止并删除文件）
 qq clean myproject
 
