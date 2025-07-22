@@ -315,6 +315,114 @@ output_simple() {
     done
 }
 
+# 获取实例详细信息
+get_instance_rich_info() {
+    local instance_id="$1"
+    local status="$2"
+    local session_info="$3"
+    local namespace="$4"
+    
+    # 基础信息
+    local project_dir=""
+    local started_at=""
+    local pid=""
+    local role=""
+    local tools=()
+    local conversation_file=""
+    
+    # 从实例信息目录获取详细信息
+    local instance_dir=$(find_instance_info_dir "$instance_id")
+    if [[ $? -eq 0 && -n "$instance_dir" ]]; then
+        # 读取 info 文件
+        if [ -f "$instance_dir/info" ]; then
+            source "$instance_dir/info"
+            project_dir="$PROJECT_DIR"
+            started_at="$STARTED_AT"
+            pid="$PID"
+            conversation_file="$CONVERSATION_FILE"
+        fi
+        
+        # 读取 project_path 文件
+        if [ -f "$instance_dir/project_path" ]; then
+            project_dir=$(cat "$instance_dir/project_path")
+        fi
+    fi
+    
+    # 如果没有从实例目录获取到项目路径，尝试其他方法
+    if [[ -z "$project_dir" ]]; then
+        project_dir=$(find_instance_project "$instance_id")
+    fi
+    
+    # 获取角色信息
+    if [[ -n "$project_dir" && -d "$project_dir/.amazonq/rules" ]]; then
+        # 查找角色文件
+        for role_file in "$project_dir/.amazonq/rules"/*-engineer.md; do
+            if [[ -f "$role_file" ]]; then
+                local role_name=$(basename "$role_file" | sed 's/-engineer.md$//')
+                role="$role_name"
+                break
+            fi
+        done
+        
+        # 获取工具列表
+        for tool_file in "$project_dir/.amazonq/rules"/tools_*.md; do
+            if [[ -f "$tool_file" ]]; then
+                local tool_name=$(basename "$tool_file" | sed 's/tools_//' | sed 's/.md$//')
+                tools+=("$tool_name")
+            fi
+        done
+    fi
+    
+    # 获取日志文件信息
+    local log_file=""
+    local log_size="0"
+    local log_modified=""
+    if [[ -n "$instance_dir" ]]; then
+        local ns_dir=$(dirname "$(dirname "$instance_dir")")
+        log_file="$ns_dir/logs/instance_$instance_id.log"
+        if [[ -f "$log_file" ]]; then
+            log_size=$(stat -f%z "$log_file" 2>/dev/null || echo "0")
+            log_modified=$(stat -f%Sm "$log_file" 2>/dev/null || echo "Unknown")
+        fi
+    fi
+    
+    # 构建 JSON 对象
+    local tools_json=""
+    if [ ${#tools[@]} -gt 0 ]; then
+        tools_json="["
+        local first_tool=true
+        for tool in "${tools[@]}"; do
+            if [ "$first_tool" = true ]; then
+                first_tool=false
+            else
+                tools_json+=", "
+            fi
+            tools_json+="\"$tool\""
+        done
+        tools_json+="]"
+    else
+        tools_json="[]"
+    fi
+    
+    # 输出 JSON 格式的实例信息
+    echo -n "{"
+    echo -n "\"id\": \"$instance_id\", "
+    echo -n "\"status\": \"$status\", "
+    echo -n "\"session\": \"$session_info\", "
+    echo -n "\"namespace\": \"$namespace\", "
+    echo -n "\"project_dir\": \"${project_dir:-""}\", "
+    echo -n "\"role\": \"${role:-""}\", "
+    echo -n "\"tools\": $tools_json, "
+    echo -n "\"started_at\": \"${started_at:-""}\", "
+    echo -n "\"pid\": \"${pid:-""}\", "
+    echo -n "\"log_file\": \"${log_file:-""}\", "
+    echo -n "\"log_size\": $log_size, "
+    echo -n "\"log_modified\": \"${log_modified:-""}\", "
+    echo -n "\"conversation_file\": \"${conversation_file:-""}\", "
+    echo -n "\"attach_command\": \"tmux attach-session -t q_instance_$instance_id\""
+    echo -n "}"
+}
+
 # JSON输出格式
 output_json() {
     local instance_data=("$@")
@@ -340,13 +448,8 @@ output_json() {
             echo ","
         fi
         
-        echo -n "    {"
-        echo -n "\"id\": \"$instance_id\", "
-        echo -n "\"status\": \"$status\", "
-        echo -n "\"session\": \"$session_info\", "
-        echo -n "\"namespace\": \"$namespace\", "
-        echo -n "\"attach_command\": \"tmux attach-session -t q_instance_$instance_id\""
-        echo -n "}"
+        echo -n "    "
+        get_instance_rich_info "$instance_id" "$status" "$session_info" "$namespace"
     done
     
     echo ""
@@ -448,12 +551,69 @@ output_instance_json() {
     local instance_dir="$8"
     local namespace="$9"
     
+    # 获取角色和工具信息
+    local role=""
+    local tools=()
+    local started_at=""
+    local pid=""
+    local conversation_file=""
+    
+    # 从实例信息目录获取详细信息
+    if [[ -n "$instance_dir" && -f "$instance_dir/info" ]]; then
+        source "$instance_dir/info"
+        started_at="$STARTED_AT"
+        pid="$PID"
+        conversation_file="$CONVERSATION_FILE"
+    fi
+    
+    # 获取角色信息
+    if [[ -n "$project_dir" && -d "$project_dir/.amazonq/rules" ]]; then
+        # 查找角色文件
+        for role_file in "$project_dir/.amazonq/rules"/*-engineer.md; do
+            if [[ -f "$role_file" ]]; then
+                local role_name=$(basename "$role_file" | sed 's/-engineer.md$//')
+                role="$role_name"
+                break
+            fi
+        done
+        
+        # 获取工具列表
+        for tool_file in "$project_dir/.amazonq/rules"/tools_*.md; do
+            if [[ -f "$tool_file" ]]; then
+                local tool_name=$(basename "$tool_file" | sed 's/tools_//' | sed 's/.md$//')
+                tools+=("$tool_name")
+            fi
+        done
+    fi
+    
+    # 构建工具 JSON 数组
+    local tools_json=""
+    if [ ${#tools[@]} -gt 0 ]; then
+        tools_json="["
+        local first_tool=true
+        for tool in "${tools[@]}"; do
+            if [ "$first_tool" = true ]; then
+                first_tool=false
+            else
+                tools_json+=", "
+            fi
+            tools_json+="\"$tool\""
+        done
+        tools_json+="]"
+    else
+        tools_json="[]"
+    fi
+    
     echo "{"
     echo "  \"id\": \"$instance_id\","
     echo "  \"status\": \"$status\","
     echo "  \"namespace\": \"$namespace\","
     echo "  \"session\": \"${session_info:-q_instance_$instance_id}\","
     echo "  \"project_dir\": \"${project_dir:-null}\","
+    echo "  \"role\": \"${role:-""}\","
+    echo "  \"tools\": $tools_json,"
+    echo "  \"started_at\": \"${started_at:-""}\","
+    echo "  \"pid\": \"${pid:-""}\","
     echo "  \"instance_dir\": \"${instance_dir:-null}\","
     echo "  \"log_file\": \"${log_file:-null}\","
     
@@ -465,6 +625,7 @@ output_instance_json() {
         echo "  \"log_modified\": null,"
     fi
     
+    echo "  \"conversation_file\": \"${conversation_file:-""}\","
     echo "  \"attach_command\": \"tmux attach-session -t q_instance_$instance_id\""
     echo "}"
 }
