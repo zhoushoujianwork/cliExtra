@@ -8,202 +8,312 @@ source "$SCRIPT_DIR/cliExtra-common.sh"
 
 # 显示帮助
 show_help() {
-    echo "用法: cliExtra replay <command> [options]"
+    echo "用法: cliExtra replay <type> <target> [options]"
     echo ""
-    echo "命令:"
-    echo "  instance <id>        回放指定实例的对话记录"
-    echo "  namespace <ns>       回放指定namespace的消息历史"
-    echo "  list                 列出可用的对话记录"
+    echo "类型:"
+    echo "  instance <id>     回放指定实例的对话记录"
+    echo "  namespace <ns>    回放指定namespace的消息历史"
     echo ""
     echo "选项:"
-    echo "  --format <format>    输出格式: text(默认), json, timeline"
-    echo "  --since <time>       只显示指定时间之后的记录"
-    echo "  --limit <n>          限制显示的记录数量"
-    echo "  --project <path>     指定项目路径（默认当前目录）"
+    echo "  --format <fmt>    输出格式 (text|json|timeline)"
+    echo "  --limit <n>       限制显示记录数量"
+    echo "  --since <date>    显示指定时间后的记录"
+    echo "  --type <type>     过滤消息类型 (message|broadcast|ai_response)"
     echo ""
     echo "示例:"
-    echo "  cliExtra replay instance backend-api           # 回放backend-api实例的对话"
-    echo "  cliExtra replay namespace development          # 回放development namespace的消息历史"
-    echo "  cliExtra replay instance frontend-dev --format json  # JSON格式输出"
-    echo "  cliExtra replay namespace backend --since \"2025-01-20\"  # 显示指定日期后的记录"
-    echo "  cliExtra replay list                           # 列出所有可用的对话记录"
+    echo "  cliExtra replay instance backend-api"
+    echo "  cliExtra replay instance frontend-dev --format json"
+    echo "  cliExtra replay namespace development --limit 10"
+    echo "  cliExtra replay namespace backend --since \"2025-01-20\""
 }
 
-# 获取项目目录
-get_project_dir() {
-    local project_path="${1:-$(pwd)}"
+# 格式化时间戳
+format_timestamp() {
+    local timestamp="$1"
+    local format="$2"
     
-    # 转换为绝对路径
-    if [[ "$project_path" = /* ]]; then
-        echo "$project_path"
-    else
-        echo "$(pwd)/$project_path"
-    fi
+    case "$format" in
+        "timeline")
+            date -j -f "%Y-%m-%dT%H:%M:%SZ" "$timestamp" "+%H:%M:%S" 2>/dev/null || echo "$timestamp"
+            ;;
+        *)
+            date -j -f "%Y-%m-%dT%H:%M:%SZ" "$timestamp" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "$timestamp"
+            ;;
+    esac
 }
 
-# 列出可用的对话记录
-list_conversation_records() {
-    local project_dir="$1"
-    local namespaces_dir="$project_dir/.cliExtra/namespaces"
+# 格式化消息发送者
+format_sender() {
+    local sender="$1"
+    local type="$2"
     
-    if [[ ! -d "$namespaces_dir" ]]; then
-        echo "项目中没有找到对话记录"
+    case "$sender" in
+        "external")
+            echo "👤 用户"
+            ;;
+        "broadcast")
+            echo "📢 广播"
+            ;;
+        "ai")
+            echo "🤖 AI助手"
+            ;;
+        *)
+            echo "❓ $sender"
+            ;;
+    esac
+}
+
+# 文本格式输出
+output_text_format() {
+    local conversations="$1"
+    local limit="$2"
+    local since="$3"
+    local type_filter="$4"
+    
+    echo "$conversations" | jq -r --arg limit "$limit" --arg since "$since" --arg type_filter "$type_filter" '
+        .conversations[]
+        | select(
+            (if $since != "" then .timestamp >= $since else true end) and
+            (if $type_filter != "" then .type == $type_filter else true end)
+        )
+        | "\(.timestamp)|\(.type)|\(.sender)|\(.message)"
+    ' | head -n "${limit:-1000}" | while IFS='|' read -r timestamp type sender message; do
+        local formatted_time=$(format_timestamp "$timestamp" "text")
+        local formatted_sender=$(format_sender "$sender" "$type")
+        
+        echo "[$formatted_time] $formatted_sender"
+        echo "$message"
+        echo ""
+    done
+}
+
+# 时间线格式输出
+output_timeline_format() {
+    local conversations="$1"
+    local limit="$2"
+    local since="$3"
+    local type_filter="$4"
+    
+    echo "=== 对话时间线 ==="
+    echo ""
+    
+    echo "$conversations" | jq -r --arg limit "$limit" --arg since "$since" --arg type_filter "$type_filter" '
+        .conversations[]
+        | select(
+            (if $since != "" then .timestamp >= $since else true end) and
+            (if $type_filter != "" then .type == $type_filter else true end)
+        )
+        | "\(.timestamp)|\(.type)|\(.sender)|\(.message)"
+    ' | head -n "${limit:-1000}" | while IFS='|' read -r timestamp type sender message; do
+        local formatted_time=$(format_timestamp "$timestamp" "timeline")
+        local formatted_sender=$(format_sender "$sender" "$type")
+        
+        # 根据消息类型使用不同的颜色
+        case "$type" in
+            "message")
+                echo -e "\033[0;36m$formatted_time\033[0m $formatted_sender: $message"
+                ;;
+            "broadcast")
+                echo -e "\033[0;33m$formatted_time\033[0m $formatted_sender: $message"
+                ;;
+            "ai_response")
+                echo -e "\033[0;32m$formatted_time\033[0m $formatted_sender: ${message:0:100}..."
+                ;;
+            *)
+                echo "$formatted_time $formatted_sender: $message"
+                ;;
+        esac
+    done
+}
+
+# JSON格式输出
+output_json_format() {
+    local conversations="$1"
+    local limit="$2"
+    local since="$3"
+    local type_filter="$4"
+    
+    if ! command -v jq >/dev/null 2>&1; then
+        echo "错误: 需要安装 jq 才能使用 JSON 格式"
         return 1
     fi
     
-    echo "=== 可用的对话记录 ==="
-    printf "%-15s %-20s %-15s %s\n" "Namespace" "实例ID" "记录数" "最后更新"
-    printf "%-15s %-20s %-15s %s\n" "---------" "------" "----" "--------"
-    
-    for ns_dir in "$namespaces_dir"/*; do
-        if [[ -d "$ns_dir" ]]; then
-            local namespace=$(basename "$ns_dir")
-            local conversations_dir="$ns_dir/conversations"
-            
-            if [[ -d "$conversations_dir" ]]; then
-                for conv_file in "$conversations_dir"/instance_*.json; do
-                    if [[ -f "$conv_file" ]]; then
-                        local instance_id=$(basename "$conv_file" .json | sed 's/instance_//')
-                        
-                        if command -v jq >/dev/null 2>&1; then
-                            local count=$(jq '.conversations | length' "$conv_file" 2>/dev/null || echo "0")
-                            local last_update=$(jq -r '.conversations[-1].timestamp // "N/A"' "$conv_file" 2>/dev/null || echo "N/A")
-                        else
-                            local count="N/A"
-                            local last_update="N/A"
-                        fi
-                        
-                        printf "%-15s %-20s %-15s %s\n" "$namespace" "$instance_id" "$count" "$last_update"
-                    fi
-                done
-            fi
-        fi
-    done
+    echo "$conversations" | jq --arg limit "${limit:-1000}" --arg since "${since:-}" --arg type_filter "${type_filter:-}" '{
+        instance_id: .instance_id,
+        namespace: .namespace,
+        project_dir: .project_dir,
+        created_at: .created_at,
+        conversations: [
+            .conversations[]
+            | select(
+                (if $since != "" then .timestamp >= $since else true end) and
+                (if $type_filter != "" then .type == $type_filter else true end)
+            )
+        ][:($limit | tonumber)]
+    }'
 }
 
 # 回放实例对话
-replay_instance_conversation() {
-    local project_dir="$1"
-    local instance_id="$2"
-    local format="$3"
+replay_instance() {
+    local instance_id="$1"
+    local format="$2"
+    local limit="$3"
     local since="$4"
-    local limit="$5"
+    local type_filter="$5"
     
-    # 查找实例的对话文件
+    # 查找对话文件
+    local instance_dir=$(find_instance_info_dir "$instance_id")
     local conversation_file=""
-    local namespaces_dir="$project_dir/.cliExtra/namespaces"
     
-    for ns_dir in "$namespaces_dir"/*; do
-        if [[ -d "$ns_dir" ]]; then
-            local conv_file="$ns_dir/conversations/instance_$instance_id.json"
-            if [[ -f "$conv_file" ]]; then
-                conversation_file="$conv_file"
-                break
-            fi
-        fi
-    done
-    
-    if [[ -z "$conversation_file" ]]; then
-        echo "错误: 未找到实例 $instance_id 的对话记录"
+    if [[ $? -eq 0 && -n "$instance_dir" ]]; then
+        local ns_dir=$(dirname "$(dirname "$instance_dir")")
+        conversation_file="$ns_dir/conversations/instance_$instance_id.json"
+    else
+        echo "错误: 无法找到实例 $instance_id"
         return 1
     fi
     
-    if ! command -v jq >/dev/null 2>&1; then
-        echo "错误: 需要安装jq来处理对话记录"
+    if [[ ! -f "$conversation_file" ]]; then
+        echo "错误: 实例 $instance_id 没有对话记录"
         return 1
     fi
     
-    # 构建jq过滤器
-    local jq_filter=".conversations"
+    local conversations=$(cat "$conversation_file")
+    local total_count=$(echo "$conversations" | jq '.conversations | length')
     
-    if [[ -n "$since" ]]; then
-        jq_filter="$jq_filter | map(select(.timestamp >= \"$since\"))"
-    fi
-    
-    if [[ -n "$limit" ]]; then
-        jq_filter="$jq_filter | .[-$limit:]"
-    fi
+    echo "实例: $instance_id"
+    echo "对话记录: $total_count 条"
+    echo ""
     
     case "$format" in
         "json")
-            jq "$jq_filter" "$conversation_file"
+            output_json_format "$conversations" "$limit" "$since" "$type_filter"
             ;;
         "timeline")
-            echo "=== 实例 $instance_id 对话时间线 ==="
-            jq -r "$jq_filter | .[] | \"[\(.timestamp)] \(.sender): \(.message)\"" "$conversation_file"
+            output_timeline_format "$conversations" "$limit" "$since" "$type_filter"
             ;;
-        "text"|*)
-            echo "=== 实例 $instance_id 对话记录 ==="
-            local namespace=$(jq -r '.namespace' "$conversation_file")
-            local created_at=$(jq -r '.created_at' "$conversation_file")
-            echo "Namespace: $namespace"
-            echo "创建时间: $created_at"
-            echo ""
-            
-            jq -r "$jq_filter | .[] | \"[\(.timestamp | strftime(\"%Y-%m-%d %H:%M:%S\"))] \(.sender): \(.message)\"" "$conversation_file" 2>/dev/null || \
-            jq -r "$jq_filter | .[] | \"[\(.timestamp)] \(.sender): \(.message)\"" "$conversation_file"
+        *)
+            output_text_format "$conversations" "$limit" "$since" "$type_filter"
             ;;
     esac
 }
 
 # 回放namespace消息历史
-replay_namespace_history() {
-    local project_dir="$1"
-    local namespace="$2"
-    local format="$3"
+replay_namespace() {
+    local namespace="$1"
+    local format="$2"
+    local limit="$3"
     local since="$4"
-    local limit="$5"
+    local type_filter="$5"
     
-    local cache_file="$(get_namespace_dir "$namespace")/namespace_cache.json"
-    
-    if [[ ! -f "$cache_file" ]]; then
-        echo "错误: 未找到namespace $namespace 的消息历史"
+    local ns_dir="$CLIEXTRA_HOME/namespaces/$namespace"
+    if [[ ! -d "$ns_dir" ]]; then
+        echo "错误: namespace '$namespace' 不存在"
         return 1
     fi
     
-    if ! command -v jq >/dev/null 2>&1; then
-        echo "错误: 需要安装jq来处理消息历史"
+    local conversations_dir="$ns_dir/conversations"
+    if [[ ! -d "$conversations_dir" ]]; then
+        echo "错误: namespace '$namespace' 没有对话记录"
         return 1
     fi
     
-    # 构建jq过滤器
-    local jq_filter=".message_history"
+    echo "Namespace: $namespace"
+    echo ""
     
-    if [[ -n "$since" ]]; then
-        jq_filter="$jq_filter | map(select(.timestamp >= \"$since\"))"
-    fi
+    # 收集所有实例的对话记录
+    local all_conversations="[]"
     
-    if [[ -n "$limit" ]]; then
-        jq_filter="$jq_filter | .[-$limit:]"
-    fi
+    for conv_file in "$conversations_dir"/instance_*.json; do
+        if [[ -f "$conv_file" ]]; then
+            local instance_conversations=$(cat "$conv_file")
+            local instance_id=$(echo "$instance_conversations" | jq -r '.instance_id')
+            
+            # 为每条对话添加实例ID信息
+            local enhanced_conversations=$(echo "$instance_conversations" | jq --arg instance_id "$instance_id" '
+                .conversations[] | . + {"instance_id": $instance_id}
+            ')
+            
+            all_conversations=$(echo "$all_conversations" | jq --argjson new "$enhanced_conversations" '. + [$new]')
+        fi
+    done
     
+    # 按时间戳排序
+    all_conversations=$(echo "$all_conversations" | jq 'sort_by(.timestamp)')
+    
+    local total_count=$(echo "$all_conversations" | jq 'length')
+    echo "总对话记录: $total_count 条"
+    echo ""
+    
+    # 根据格式输出
     case "$format" in
         "json")
-            jq "$jq_filter" "$cache_file"
+            echo "$all_conversations" | jq --arg limit "$limit" --arg since "$since" --arg type_filter "$type_filter" '[
+                .[]
+                | select(
+                    (if $since != "" then .timestamp >= $since else true end) and
+                    (if $type_filter != "" then .type == $type_filter else true end)
+                )
+            ][:($limit | tonumber // 1000)]'
             ;;
         "timeline")
-            echo "=== Namespace $namespace 消息时间线 ==="
-            jq -r "$jq_filter | .[] | \"[\(.timestamp)] \(.action): \(.message // \"N/A\")\"" "$cache_file"
-            ;;
-        "text"|*)
-            echo "=== Namespace $namespace 消息历史 ==="
-            local created_at=$(jq -r '.created_at' "$cache_file")
-            echo "创建时间: $created_at"
+            echo "=== Namespace 对话时间线 ==="
             echo ""
             
-            jq -r "$jq_filter | .[] | \"[\(.timestamp | strftime(\"%Y-%m-%d %H:%M:%S\"))] \(.action) (\(.instance_id)): \(.message // \"N/A\")\"" "$cache_file" 2>/dev/null || \
-            jq -r "$jq_filter | .[] | \"[\(.timestamp)] \(.action) (\(.instance_id)): \(.message // \"N/A\")\"" "$cache_file"
+            echo "$all_conversations" | jq -r --arg limit "$limit" --arg since "$since" --arg type_filter "$type_filter" '
+                .[]
+                | select(
+                    (if $since != "" then .timestamp >= $since else true end) and
+                    (if $type_filter != "" then .type == $type_filter else true end)
+                )
+                | "\(.timestamp)|\(.type)|\(.sender)|\(.instance_id)|\(.message)"
+            ' | head -n "${limit:-1000}" | while IFS='|' read -r timestamp type sender instance_id message; do
+                local formatted_time=$(format_timestamp "$timestamp" "timeline")
+                local formatted_sender=$(format_sender "$sender" "$type")
+                
+                case "$type" in
+                    "message")
+                        echo -e "\033[0;36m$formatted_time\033[0m [$instance_id] $formatted_sender: $message"
+                        ;;
+                    "broadcast")
+                        echo -e "\033[0;33m$formatted_time\033[0m [$instance_id] $formatted_sender: $message"
+                        ;;
+                    "ai_response")
+                        echo -e "\033[0;32m$formatted_time\033[0m [$instance_id] $formatted_sender: ${message:0:100}..."
+                        ;;
+                    *)
+                        echo "$formatted_time [$instance_id] $formatted_sender: $message"
+                        ;;
+                esac
+            done
+            ;;
+        *)
+            echo "$all_conversations" | jq -r --arg limit "$limit" --arg since "$since" --arg type_filter "$type_filter" '
+                .[]
+                | select(
+                    (if $since != "" then .timestamp >= $since else true end) and
+                    (if $type_filter != "" then .type == $type_filter else true end)
+                )
+                | "\(.timestamp)|\(.type)|\(.sender)|\(.instance_id)|\(.message)"
+            ' | head -n "${limit:-1000}" | while IFS='|' read -r timestamp type sender instance_id message; do
+                local formatted_time=$(format_timestamp "$timestamp" "text")
+                local formatted_sender=$(format_sender "$sender" "$type")
+                
+                echo "[$formatted_time] [$instance_id] $formatted_sender"
+                echo "$message"
+                echo ""
+            done
             ;;
     esac
 }
 
 # 解析参数
-COMMAND=""
+TYPE=""
 TARGET=""
 FORMAT="text"
-SINCE=""
 LIMIT=""
-PROJECT_DIR=""
+SINCE=""
+TYPE_FILTER=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -211,72 +321,54 @@ while [[ $# -gt 0 ]]; do
             FORMAT="$2"
             shift 2
             ;;
-        --since)
-            SINCE="$2"
-            shift 2
-            ;;
         --limit)
             LIMIT="$2"
             shift 2
             ;;
-        --project)
-            PROJECT_DIR="$2"
+        --since)
+            SINCE="$2"
+            shift 2
+            ;;
+        --type)
+            TYPE_FILTER="$2"
             shift 2
             ;;
         --help|-h)
             show_help
             exit 0
             ;;
-        instance|namespace|list)
-            COMMAND="$1"
-            if [[ "$1" != "list" ]]; then
-                TARGET="$2"
-                shift 2
-            else
-                shift
-            fi
-            ;;
-        *)
-            echo "未知参数: $1"
+        -*)
+            echo "未知选项: $1"
             show_help
             exit 1
+            ;;
+        *)
+            if [[ -z "$TYPE" ]]; then
+                TYPE="$1"
+            elif [[ -z "$TARGET" ]]; then
+                TARGET="$1"
+            fi
+            shift
             ;;
     esac
 done
 
-# 设置默认项目目录
-if [[ -z "$PROJECT_DIR" ]]; then
-    PROJECT_DIR=$(get_project_dir)
+# 主逻辑
+if [[ -z "$TYPE" || -z "$TARGET" ]]; then
+    echo "错误: 请指定类型和目标"
+    show_help
+    exit 1
 fi
 
-# 主逻辑
-case "$COMMAND" in
+case "$TYPE" in
     "instance")
-        if [[ -z "$TARGET" ]]; then
-            echo "错误: 请指定实例ID"
-            show_help
-            exit 1
-        fi
-        replay_instance_conversation "$PROJECT_DIR" "$TARGET" "$FORMAT" "$SINCE" "$LIMIT"
+        replay_instance "$TARGET" "$FORMAT" "$LIMIT" "$SINCE" "$TYPE_FILTER"
         ;;
     "namespace")
-        if [[ -z "$TARGET" ]]; then
-            echo "错误: 请指定namespace"
-            show_help
-            exit 1
-        fi
-        replay_namespace_history "$PROJECT_DIR" "$TARGET" "$FORMAT" "$SINCE" "$LIMIT"
-        ;;
-    "list")
-        list_conversation_records "$PROJECT_DIR"
-        ;;
-    "")
-        echo "错误: 请指定命令"
-        show_help
-        exit 1
+        replay_namespace "$TARGET" "$FORMAT" "$LIMIT" "$SINCE" "$TYPE_FILTER"
         ;;
     *)
-        echo "未知命令: $COMMAND"
+        echo "错误: 未知类型 '$TYPE'"
         show_help
         exit 1
         ;;
