@@ -71,17 +71,42 @@ record_broadcast_to_conversations() {
     local timestamp="$3"
     
     for instance_id in $instances; do
-        # 查找实例所在的项目目录
-        local project_dir=$(find_instance_project "$instance_id")
-        if [[ $? -eq 0 ]]; then
-            # 获取实例namespace
-            local namespace=$(get_instance_namespace_from_project "$project_dir" "$instance_id")
-            local conversation_file="$(get_instance_conversation_dir "$namespace")/instance_$instance_id.json"
+        # 使用与 send 命令相同的逻辑查找实例信息
+        local instance_dir=$(find_instance_info_dir "$instance_id")
+        local conversation_file=""
+        local namespace="default"
+        local project_dir=""
+        
+        if [[ $? -eq 0 && -n "$instance_dir" ]]; then
+            # 从工作目录结构获取对话文件
+            local ns_dir=$(dirname "$(dirname "$instance_dir")")
+            conversation_file="$ns_dir/conversations/instance_$instance_id.json"
+            namespace=$(basename "$ns_dir")
             
-            # 确保对话文件存在
-            if [[ ! -f "$conversation_file" ]]; then
-                mkdir -p "$(dirname "$conversation_file")"
-                cat > "$conversation_file" << EOF
+            # 获取项目目录
+            if [[ -f "$instance_dir/project_path" ]]; then
+                project_dir=$(cat "$instance_dir/project_path")
+            elif [[ -f "$instance_dir/info" ]]; then
+                source "$instance_dir/info"
+                project_dir="$PROJECT_DIR"
+            fi
+        else
+            # 向后兼容：查找实例所在的项目目录
+            project_dir=$(find_instance_project "$instance_id")
+            if [[ $? -ne 0 ]]; then
+                echo "警告: 无法找到实例 $instance_id 的项目目录"
+                continue
+            fi
+            
+            # 获取实例namespace
+            namespace=$(get_instance_namespace_from_project "$project_dir" "$instance_id")
+            conversation_file="$(get_instance_conversation_dir "$namespace")/instance_$instance_id.json"
+        fi
+        
+        # 确保对话文件存在
+        if [[ ! -f "$conversation_file" ]]; then
+            mkdir -p "$(dirname "$conversation_file")"
+            cat > "$conversation_file" << EOF
 {
   "instance_id": "$instance_id",
   "namespace": "$namespace",
@@ -90,21 +115,24 @@ record_broadcast_to_conversations() {
   "conversations": []
 }
 EOF
-            fi
+        fi
+        
+        # 使用jq添加广播记录
+        if command -v jq >/dev/null 2>&1; then
+            local temp_file=$(mktemp)
+            jq --arg timestamp "$timestamp" \
+               --arg message "$message" \
+               --arg type "broadcast" \
+               '.conversations += [{
+                   "timestamp": $timestamp,
+                   "type": $type,
+                   "sender": "broadcast",
+                   "message": $message
+               }]' "$conversation_file" > "$temp_file" && mv "$temp_file" "$conversation_file"
             
-            # 使用jq添加广播记录
-            if command -v jq >/dev/null 2>&1; then
-                local temp_file=$(mktemp)
-                jq --arg timestamp "$timestamp" \
-                   --arg message "$message" \
-                   --arg type "broadcast" \
-                   '.conversations += [{
-                       "timestamp": $timestamp,
-                       "type": $type,
-                       "sender": "broadcast",
-                       "message": $message
-                   }]' "$conversation_file" > "$temp_file" && mv "$temp_file" "$conversation_file"
-            fi
+            echo "  ✓ 对话已记录到: $conversation_file"
+        else
+            echo "  警告: jq未安装，无法记录对话到实例 $instance_id"
         fi
     done
 }
