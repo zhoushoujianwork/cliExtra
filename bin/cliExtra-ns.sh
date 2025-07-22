@@ -50,13 +50,39 @@ create_namespace() {
         return 1
     fi
     
+    # 检查是否为保留名称
+    if [[ "$ns_name" == "config" || "$ns_name" == "logs" || "$ns_name" == "cache" || "$ns_name" == "projects" ]]; then
+        echo "错误: '$ns_name' 是保留名称，不能用作namespace"
+        return 1
+    fi
+    
     local ns_config_dir=$(get_ns_config_dir)
     local ns_file="$ns_config_dir/$ns_name.conf"
+    local ns_dir="$(get_namespace_dir "$ns_name")"
     
-    if [[ -f "$ns_file" ]]; then
+    if [[ -f "$ns_file" || -d "$ns_dir" ]]; then
         echo "namespace '$ns_name' 已存在"
         return 1
     fi
+    
+    echo "正在创建namespace '$ns_name'..."
+    
+    # 创建namespace目录结构
+    local dirs_to_create=(
+        "$ns_dir"
+        "$ns_dir/$CLIEXTRA_INSTANCES_SUBDIR"
+        "$ns_dir/$CLIEXTRA_LOGS_SUBDIR"
+        "$ns_dir/$CLIEXTRA_CONVERSATIONS_SUBDIR"
+    )
+    
+    for dir in "${dirs_to_create[@]}"; do
+        if mkdir -p "$dir"; then
+            echo "✓ 创建目录: $dir"
+        else
+            echo "❌ 创建目录失败: $dir"
+            return 1
+        fi
+    done
     
     # 创建namespace配置文件
     cat > "$ns_file" << EOF
@@ -66,7 +92,36 @@ CREATED_AT="$(date)"
 DESCRIPTION=""
 EOF
     
+    if [[ $? -eq 0 ]]; then
+        echo "✓ 创建配置文件: $ns_file"
+    else
+        echo "❌ 创建配置文件失败: $ns_file"
+        return 1
+    fi
+    
+    # 创建namespace缓存文件
+    local cache_file="$ns_dir/namespace_cache.json"
+    cat > "$cache_file" << EOF
+{
+  "namespace": "$ns_name",
+  "created_at": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+  "instances": [],
+  "last_updated": "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+}
+EOF
+    
+    if [[ $? -eq 0 ]]; then
+        echo "✓ 创建缓存文件: $cache_file"
+    fi
+    
+    echo ""
     echo "✓ namespace '$ns_name' 创建成功"
+    echo ""
+    echo "创建摘要:"
+    echo "  - Namespace: $ns_name"
+    echo "  - 目录位置: $ns_dir"
+    echo "  - 配置文件: $ns_file"
+    echo "  - 子目录: instances, logs, conversations"
 }
 
 # 删除namespace
@@ -79,10 +134,17 @@ delete_namespace() {
         return 1
     fi
     
+    # 检查是否为默认namespace
+    if [[ "$ns_name" == "$CLIEXTRA_DEFAULT_NS" ]]; then
+        echo "错误: 不能删除默认namespace '$CLIEXTRA_DEFAULT_NS'"
+        return 1
+    fi
+    
     local ns_config_dir=$(get_ns_config_dir)
     local ns_file="$ns_config_dir/$ns_name.conf"
+    local ns_dir="$(get_namespace_dir "$ns_name")"
     
-    if [[ ! -f "$ns_file" ]]; then
+    if [[ ! -f "$ns_file" && ! -d "$ns_dir" ]]; then
         echo "错误: namespace '$ns_name' 不存在"
         return 1
     fi
@@ -103,13 +165,65 @@ delete_namespace() {
         echo "强制删除模式: 正在停止namespace中的所有实例..."
         for instance_id in $instances_in_ns; do
             echo "停止实例: $instance_id"
-            "$SCRIPT_DIR/cliExtra-stop.sh" "$instance_id"
+            "$SCRIPT_DIR/cliExtra-stop.sh" "$instance_id" 2>/dev/null || true
         done
+        
+        # 等待实例完全停止
+        sleep 2
     fi
     
+    echo "正在删除namespace '$ns_name'..."
+    
     # 删除namespace配置文件
-    rm -f "$ns_file"
-    echo "✓ namespace '$ns_name' 删除成功"
+    if [[ -f "$ns_file" ]]; then
+        rm -f "$ns_file"
+        echo "✓ 删除配置文件: $ns_file"
+    fi
+    
+    # 删除namespace目录及其所有内容
+    if [[ -d "$ns_dir" ]]; then
+        echo "正在删除namespace目录: $ns_dir"
+        
+        # 显示将要删除的内容
+        if [[ "$force_delete" == "--force" ]]; then
+            echo "删除的内容包括:"
+            echo "  - 实例目录: $ns_dir/$CLIEXTRA_INSTANCES_SUBDIR"
+            echo "  - 日志目录: $ns_dir/$CLIEXTRA_LOGS_SUBDIR"
+            echo "  - 对话目录: $ns_dir/$CLIEXTRA_CONVERSATIONS_SUBDIR"
+            echo "  - 缓存文件: $ns_dir/namespace_cache.json"
+        fi
+        
+        # 删除整个namespace目录
+        if rm -rf "$ns_dir"; then
+            echo "✓ 删除namespace目录: $ns_dir"
+        else
+            echo "❌ 删除namespace目录失败: $ns_dir"
+            return 1
+        fi
+    fi
+    
+    # 清理可能存在的旧结构（向后兼容）
+    local old_ns_dirs=(
+        "$HOME/.cliExtra/namespaces/$ns_name"
+        "$(pwd)/.cliExtra/namespaces/$ns_name"
+    )
+    
+    for old_dir in "${old_ns_dirs[@]}"; do
+        if [[ -d "$old_dir" ]]; then
+            echo "清理旧结构目录: $old_dir"
+            rm -rf "$old_dir" 2>/dev/null || true
+        fi
+    done
+    
+    echo "✓ namespace '$ns_name' 完全删除成功"
+    
+    # 显示删除摘要
+    echo ""
+    echo "删除摘要:"
+    echo "  - Namespace: $ns_name"
+    echo "  - 停止的实例: $instance_count"
+    echo "  - 删除的目录: $ns_dir"
+    echo "  - 删除的配置: $ns_file"
 }
 
 # 获取指定namespace中的实例

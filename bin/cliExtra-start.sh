@@ -119,7 +119,7 @@ generate_instance_id() {
     # 生成带目录名的实例ID
     local timestamp=$(date +%s)
     local random_suffix=$(shuf -i 1000-9999 -n 1 2>/dev/null || echo $RANDOM)
-    echo "cliExtra_${dir_name}_${timestamp}_${random_suffix}"
+    echo "${dir_name}_${timestamp}_${random_suffix}"
 }
 
 # 解析命令行参数
