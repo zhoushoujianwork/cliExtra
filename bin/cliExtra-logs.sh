@@ -19,7 +19,7 @@ view_instance_logs() {
     if [[ $? -eq 0 && -n "$instance_dir" ]]; then
         # 从工作目录结构中获取日志文件
         local ns_dir=$(dirname "$(dirname "$instance_dir")")
-        log_file="$ns_dir/logs/instance_$instance_id.log"
+        log_file="$ns_dir/logs/instance_${instance_id}_tmux.log"
         
         # 获取项目目录
         if [ -f "$instance_dir/project_path" ]; then
@@ -40,7 +40,7 @@ view_instance_logs() {
         if [ -d "$project_dir/.cliExtra/namespaces" ]; then
             for ns_dir in "$project_dir/.cliExtra/namespaces"/*; do
                 if [ -d "$ns_dir/instances/instance_$instance_id" ]; then
-                    log_file="$ns_dir/logs/instance_$instance_id.log"
+                    log_file="$ns_dir/logs/instance_${instance_id}_tmux.log"
                     break
                 fi
             done
@@ -48,7 +48,7 @@ view_instance_logs() {
         
         # 回退到旧结构
         if [ -z "$log_file" ]; then
-            log_file="$project_dir/.cliExtra/logs/instance_$instance_id.log"
+            log_file="$project_dir/.cliExtra/logs/instance_${instance_id}_tmux.log"
         fi
     fi
     

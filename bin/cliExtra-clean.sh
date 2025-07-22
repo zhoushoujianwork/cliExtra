@@ -114,7 +114,7 @@ clean_single_instance() {
     if [[ $? -eq 0 && -n "$instance_dir" ]]; then
         # 获取namespace目录
         local ns_dir=$(dirname "$(dirname "$instance_dir")")
-        local log_file="$ns_dir/logs/instance_$instance_id.log"
+        local tmux_log_file="$ns_dir/logs/instance_${instance_id}_tmux.log"
         local conversation_file="$ns_dir/conversations/instance_$instance_id.json"
         
         # 删除实例目录
@@ -123,10 +123,10 @@ clean_single_instance() {
             echo "✓ 删除实例目录: $instance_dir"
         fi
         
-        # 删除日志文件
-        if [ -f "$log_file" ]; then
-            rm -f "$log_file"
-            echo "✓ 删除日志文件: $log_file"
+        # 删除tmux日志文件
+        if [ -f "$tmux_log_file" ]; then
+            rm -f "$tmux_log_file"
+            echo "✓ 删除Tmux日志: $tmux_log_file"
         fi
         
         # 删除对话记录文件
@@ -163,7 +163,7 @@ clean_single_instance() {
             # 回退到最旧的结构
             if [ "$cleaned" = false ]; then
                 local old_instance_dir="$project_dir/.cliExtra/instances/instance_$instance_id"
-                local old_log_file="$project_dir/.cliExtra/logs/instance_$instance_id.log"
+                local old_tmux_log_file="$project_dir/.cliExtra/logs/instance_${instance_id}_tmux.log"
                 
                 # 删除实例目录
                 if [ -d "$old_instance_dir" ]; then
@@ -171,10 +171,10 @@ clean_single_instance() {
                     echo "✓ 删除实例目录: $old_instance_dir"
                 fi
                 
-                # 删除日志文件
-                if [ -f "$old_log_file" ]; then
-                    rm -f "$old_log_file"
-                    echo "✓ 删除日志文件: $old_log_file"
+                # 删除tmux日志文件
+                if [ -f "$old_tmux_log_file" ]; then
+                    rm -f "$old_tmux_log_file"
+                    echo "✓ 删除Tmux日志: $old_tmux_log_file"
                 fi
             fi
             

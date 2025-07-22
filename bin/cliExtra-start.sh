@@ -64,7 +64,7 @@ resume_instance() {
     echo "重新启动 tmux 会话..."
     
     # 创建新的 tmux 会话
-    local log_file="$WORK_DIR/namespaces/$namespace/logs/instance_$instance_id.log"
+    local tmux_log_file="$WORK_DIR/namespaces/$namespace/logs/instance_${instance_id}_tmux.log"
     
     tmux new-session -d -s "$session_name" -c "$project_path"
     
@@ -82,7 +82,7 @@ resume_instance() {
     fi
     
     # 启用日志记录
-    tmux pipe-pane -t "$session_name" -o "cat >> '$log_file'"
+    tmux pipe-pane -t "$session_name" -o "cat >> '$tmux_log_file'"
     
     echo "✓ 实例 $instance_id 已恢复"
     echo "接管会话: tmux attach-session -t $session_name"
@@ -327,16 +327,16 @@ start_tmux_instance() {
     # 使用工作目录统一管理所有实例信息
     local ns_dir="$(get_namespace_dir "$namespace")"
     local session_dir="$(get_instance_dir "$instance_id" "$namespace")"
-    local log_file="$(get_instance_log_dir "$namespace")/instance_$instance_id.log"
+    local tmux_log_file="$(get_instance_log_dir "$namespace")/instance_${instance_id}_tmux.log"
     local conversation_file="$(get_instance_conversation_dir "$namespace")/instance_$instance_id.json"
     local ns_cache_file="$ns_dir/namespace_cache.json"
     
     # 创建namespace目录结构
     mkdir -p "$session_dir"
-    mkdir -p "$(dirname "$log_file")"
+    mkdir -p "$(dirname "$tmux_log_file")"
     mkdir -p "$(dirname "$conversation_file")"
     
-    echo "$(date): 启动tmux实例 $instance_id 在项目 $project_dir (namespace: $namespace)" >> "$log_file"
+    echo "$(date): 启动tmux实例 $instance_id 在项目 $project_dir (namespace: $namespace)" >> "$tmux_log_file"
     
     # 初始化对话记录文件
     if [[ ! -f "$conversation_file" ]]; then
@@ -381,14 +381,14 @@ EOF
     echo "Namespace: $namespace"
     echo "会话名称: $session_name"
     echo "会话目录: $session_dir"
-    echo "日志文件: $log_file"
+    echo "Tmux日志: $tmux_log_file"
     echo "对话记录: $conversation_file"
     
     # 启动tmux会话，在项目目录中运行
     tmux new-session -d -s "$session_name" -c "$project_dir" "q chat --trust-all-tools"
     
     # 启用tmux日志记录
-    tmux pipe-pane -t "$session_name" -o "cat >> '$session_dir/tmux.log'"
+    tmux pipe-pane -t "$session_name" -o "cat >> '$tmux_log_file'"
     
     # 等待一下确保会话启动
     sleep 3
