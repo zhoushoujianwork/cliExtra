@@ -245,6 +245,7 @@ clean_all_tmux() {
     local instances_to_clean=()
     local cleaned=false
     
+    # 1. 从运行中的 tmux 会话获取实例
     while IFS= read -r session_line; do
         if [[ "$session_line" == q_instance_* ]]; then
             session_info=$(echo "$session_line" | cut -d: -f1)
@@ -254,12 +255,77 @@ clean_all_tmux() {
         fi
     done < <(tmux list-sessions -F "#{session_name}" 2>/dev/null)
     
+    # 2. 从工作目录的namespace结构中获取所有实例（包括已停止的）
+    if [ -d "$CLIEXTRA_HOME/namespaces" ]; then
+        for ns_dir in "$CLIEXTRA_HOME/namespaces"/*; do
+            if [ -d "$ns_dir/instances" ]; then
+                for instance_dir in "$ns_dir/instances"/instance_*; do
+                    if [ -d "$instance_dir" ]; then
+                        local instance_id=$(basename "$instance_dir" | sed 's/instance_//')
+                        
+                        # 检查是否已经在列表中
+                        local found=false
+                        for existing_instance in "${instances_to_clean[@]}"; do
+                            if [ "$existing_instance" = "$instance_id" ]; then
+                                found=true
+                                break
+                            fi
+                        done
+                        
+                        # 如果不在列表中，添加进去
+                        if [ "$found" = false ]; then
+                            instances_to_clean+=("$instance_id")
+                            cleaned=true
+                        fi
+                    fi
+                done
+            fi
+        done
+    fi
+    
+    # 3. 向后兼容：从项目目录中查找实例
+    local search_dirs=("$HOME" "/Users" "/home")
+    for search_dir in "${search_dirs[@]}"; do
+        if [[ -d "$search_dir" ]]; then
+            while IFS= read -r -d '' cliextra_dir; do
+                local instances_dir="$cliextra_dir/instances"
+                if [[ -d "$instances_dir" ]]; then
+                    for instance_dir in "$instances_dir"/instance_*; do
+                        if [[ -d "$instance_dir" ]]; then
+                            local instance_id=$(basename "$instance_dir" | sed 's/instance_//')
+                            
+                            # 检查是否已经在列表中
+                            local found=false
+                            for existing_instance in "${instances_to_clean[@]}"; do
+                                if [ "$existing_instance" = "$instance_id" ]; then
+                                    found=true
+                                    break
+                                fi
+                            done
+                            
+                            # 如果不在列表中，添加进去
+                            if [ "$found" = false ]; then
+                                instances_to_clean+=("$instance_id")
+                                cleaned=true
+                            fi
+                        fi
+                    done
+                fi
+            done < <(find "$search_dir" -name ".cliExtra" -type d -maxdepth 5 -print0 2>/dev/null)
+        fi
+    done
+    
     if [[ "$dry_run" == "true" ]]; then
         if [ "$cleaned" = true ]; then
             echo "=== 预览模式 - 将要清理的所有实例 ==="
             for instance_id in "${instances_to_clean[@]}"; do
                 local namespace=$(get_instance_namespace "$instance_id")
-                echo "  → $instance_id (namespace: $namespace)"
+                local session_name="q_instance_$instance_id"
+                local status="Not Running"
+                if tmux has-session -t "$session_name" 2>/dev/null; then
+                    status="Running"
+                fi
+                echo "  → $instance_id (namespace: $namespace, status: $status)"
             done
             echo "总计: ${#instances_to_clean[@]} 个实例"
         else
