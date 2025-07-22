@@ -240,18 +240,19 @@ clean_namespace_instances() {
 clean_all_tmux() {
     local dry_run="$1"
     
-    echo "清理所有tmux q CLI实例..."
+    echo "清理所有实例..."
     
-    local instances_to_clean=()
-    local cleaned=false
+    local running_instances=()
+    local stopped_instances=()
+    local all_instances=()
     
     # 1. 从运行中的 tmux 会话获取实例
     while IFS= read -r session_line; do
         if [[ "$session_line" == q_instance_* ]]; then
             session_info=$(echo "$session_line" | cut -d: -f1)
             instance_id=$(echo "$session_info" | sed 's/q_instance_//')
-            instances_to_clean+=("$instance_id")
-            cleaned=true
+            running_instances+=("$instance_id")
+            all_instances+=("$instance_id")
         fi
     done < <(tmux list-sessions -F "#{session_name}" 2>/dev/null)
     
@@ -265,17 +266,17 @@ clean_all_tmux() {
                         
                         # 检查是否已经在列表中
                         local found=false
-                        for existing_instance in "${instances_to_clean[@]}"; do
+                        for existing_instance in "${all_instances[@]}"; do
                             if [ "$existing_instance" = "$instance_id" ]; then
                                 found=true
                                 break
                             fi
                         done
                         
-                        # 如果不在列表中，添加进去
+                        # 如果不在列表中，添加到停止实例列表
                         if [ "$found" = false ]; then
-                            instances_to_clean+=("$instance_id")
-                            cleaned=true
+                            stopped_instances+=("$instance_id")
+                            all_instances+=("$instance_id")
                         fi
                     fi
                 done
@@ -296,17 +297,17 @@ clean_all_tmux() {
                             
                             # 检查是否已经在列表中
                             local found=false
-                            for existing_instance in "${instances_to_clean[@]}"; do
+                            for existing_instance in "${all_instances[@]}"; do
                                 if [ "$existing_instance" = "$instance_id" ]; then
                                     found=true
                                     break
                                 fi
                             done
                             
-                            # 如果不在列表中，添加进去
+                            # 如果不在列表中，添加到停止实例列表
                             if [ "$found" = false ]; then
-                                instances_to_clean+=("$instance_id")
-                                cleaned=true
+                                stopped_instances+=("$instance_id")
+                                all_instances+=("$instance_id")
                             fi
                         fi
                     done
@@ -315,33 +316,55 @@ clean_all_tmux() {
         fi
     done
     
+    # 检查是否有运行中的实例
+    if [ ${#running_instances[@]} -gt 0 ]; then
+        echo ""
+        echo "⚠️  发现 ${#running_instances[@]} 个运行中的实例："
+        for instance_id in "${running_instances[@]}"; do
+            local namespace=$(get_instance_namespace "$instance_id")
+            echo "  → $instance_id (namespace: $namespace)"
+        done
+        echo ""
+        echo "为了安全起见，请先停止所有运行中的实例，然后再进行清理："
+        echo ""
+        echo "  # 预览将要停止的实例"
+        echo "  cliExtra stop all --dry-run"
+        echo ""
+        echo "  # 停止所有运行中的实例"
+        echo "  cliExtra stop-all"
+        echo ""
+        echo "  # 然后清理所有实例"
+        echo "  cliExtra clean-all"
+        echo ""
+        echo "或者使用组合命令："
+        echo "  cliExtra stop-all && cliExtra clean-all"
+        echo ""
+        return 1
+    fi
+    
+    # 如果没有运行中的实例，继续清理已停止的实例
     if [[ "$dry_run" == "true" ]]; then
-        if [ "$cleaned" = true ]; then
-            echo "=== 预览模式 - 将要清理的所有实例 ==="
-            for instance_id in "${instances_to_clean[@]}"; do
+        if [ ${#stopped_instances[@]} -gt 0 ]; then
+            echo "=== 预览模式 - 将要清理的已停止实例 ==="
+            for instance_id in "${stopped_instances[@]}"; do
                 local namespace=$(get_instance_namespace "$instance_id")
-                local session_name="q_instance_$instance_id"
-                local status="Not Running"
-                if tmux has-session -t "$session_name" 2>/dev/null; then
-                    status="Running"
-                fi
-                echo "  → $instance_id (namespace: $namespace, status: $status)"
+                echo "  → $instance_id (namespace: $namespace, status: Not Running)"
             done
-            echo "总计: ${#instances_to_clean[@]} 个实例"
+            echo "总计: ${#stopped_instances[@]} 个已停止的实例"
         else
             echo "没有需要清理的实例"
         fi
         return 0
     fi
     
-    if [ "$cleaned" = true ]; then
-        echo "找到 ${#instances_to_clean[@]} 个实例需要清理"
-        for instance_id in "${instances_to_clean[@]}"; do
+    if [ ${#stopped_instances[@]} -gt 0 ]; then
+        echo "找到 ${#stopped_instances[@]} 个已停止的实例需要清理"
+        for instance_id in "${stopped_instances[@]}"; do
             echo ""
             clean_single_instance "$instance_id" "false"
         done
         echo ""
-        echo "✓ 所有实例已清理完成"
+        echo "✓ 所有已停止的实例已清理完成"
     else
         echo "没有需要清理的实例"
     fi

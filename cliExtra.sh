@@ -16,13 +16,14 @@ show_help() {
     echo "  $0 start [path] [--name <name>] - 启动实例"
   $0 resume <instance_id>      - 恢复已停止的实例，载入历史上下文    echo "  $0 send <instance_id> <msg>  - 发送消息到指定实例"
     echo "  $0 attach <instance_id>      - 接管指定实例终端"
-    echo "  $0 stop <instance_id>        - 停止指定实例"
+    echo "  $0 stop <instance_id|all>    - 停止指定实例或所有实例"
     echo "  $0 list [instance_id] [-o json] - 列出所有实例或显示指定实例详情"
     echo "  $0 status <instance_id>      - 显示实例状态"
     echo "  $0 logs <instance_id> [lines] - 查看实例日志"
     echo "  $0 monitor <instance_id>     - 实时监控实例输出"
     echo "  $0 clean <instance_id|all>   - 清理实例（支持--namespace）"
     echo "  $0 clean-all                 - 清理所有实例"
+    echo "  $0 stop-all                  - 停止所有运行中的实例"
     echo "  $0 role <command>            - 角色预设管理"
     echo "  $0 ns <command>              - namespace管理"
     echo "  $0 set-ns <id> <namespace>   - 修改实例的namespace"
@@ -121,6 +122,9 @@ case "${1:-}" in
         ;;
     "clean-all")
         "$SCRIPT_DIR/bin/cliExtra-clean.sh" "all"
+        ;;
+    "stop-all")
+        "$SCRIPT_DIR/bin/cliExtra-stop.sh" "all"
         ;;
     "role")
         "$SCRIPT_DIR/bin/cliExtra-role.sh" "${@:2}"
