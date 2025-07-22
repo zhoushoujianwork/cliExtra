@@ -19,10 +19,12 @@ show_help() {
     echo ""
     echo "选项:"
     echo "  --project <path>         指定项目路径（默认当前目录）"
+    echo "  -o, --output <format>    输出格式：table（默认）或 json"
     echo "  -f, --force              强制覆盖（add命令默认行为）"
     echo ""
     echo "示例:"
     echo "  cliExtra tools list                    # 列出所有可用工具"
+    echo "  cliExtra tools list -o json            # 以JSON格式列出工具"
     echo "  cliExtra tools add git                 # 添加git工具到当前项目（覆盖已存在的）"
     echo "  cliExtra tools add dingtalk            # 添加钉钉工具到当前项目"
     echo "  cliExtra tools remove git              # 从当前项目移除git工具"
@@ -55,24 +57,53 @@ get_project_tools_dir() {
 
 # 列出所有可用工具
 list_available_tools() {
+    local output_format="$1"
     local tools_source_dir=$(get_tools_source_dir)
     
     if [[ ! -d "$tools_source_dir" ]]; then
-        echo "错误: tools源目录不存在: $tools_source_dir"
+        if [[ "$output_format" == "json" ]]; then
+            echo '{"tools": [], "count": 0}'
+        else
+            echo "错误: tools源目录不存在: $tools_source_dir"
+        fi
         return 1
     fi
     
-    echo "=== 可用工具 ==="
-    printf "%-15s %s\n" "工具名称" "描述"
-    printf "%-15s %s\n" "--------" "----"
-    
-    for tool_file in "$tools_source_dir"/*.md; do
-        if [[ -f "$tool_file" ]]; then
-            local tool_name=$(basename "$tool_file" .md)
-            local description=$(head -n 1 "$tool_file" | sed 's/^# //')
-            printf "%-15s %s\n" "$tool_name" "$description"
-        fi
-    done
+    if [[ "$output_format" == "json" ]]; then
+        echo "{"
+        echo "  \"tools\": ["
+        local first=true
+        for tool_file in "$tools_source_dir"/*.md; do
+            if [[ -f "$tool_file" ]]; then
+                local tool_name=$(basename "$tool_file" .md)
+                local description=$(head -n 1 "$tool_file" | sed 's/^# //')
+                
+                if [[ "$first" == true ]]; then
+                    first=false
+                else
+                    echo ","
+                fi
+                echo -n "    {\"name\": \"$tool_name\", \"description\": \"$description\"}"
+            fi
+        done
+        echo ""
+        echo "  ],"
+        local count=$(find "$tools_source_dir" -name "*.md" -type f | wc -l | tr -d ' ')
+        echo "  \"count\": $count"
+        echo "}"
+    else
+        echo "=== 可用工具 ==="
+        printf "%-15s %s\n" "工具名称" "描述"
+        printf "%-15s %s\n" "--------" "----"
+        
+        for tool_file in "$tools_source_dir"/*.md; do
+            if [[ -f "$tool_file" ]]; then
+                local tool_name=$(basename "$tool_file" .md)
+                local description=$(head -n 1 "$tool_file" | sed 's/^# //')
+                printf "%-15s %s\n" "$tool_name" "$description"
+            fi
+        done
+    fi
 }
 
 # 显示工具详细信息
@@ -192,11 +223,16 @@ show_installed_tools() {
 PROJECT_DIR=""
 COMMAND=""
 TOOL_NAME=""
+OUTPUT_FORMAT="table"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --project)
             PROJECT_DIR="$2"
+            shift 2
+            ;;
+        -o|--output)
+            OUTPUT_FORMAT="$2"
             shift 2
             ;;
         --help|-h)
@@ -236,7 +272,7 @@ fi
 # 主逻辑
 case "$COMMAND" in
     "list")
-        list_available_tools
+        list_available_tools "$OUTPUT_FORMAT"
         ;;
     "add")
         if [[ -z "$TOOL_NAME" ]]; then

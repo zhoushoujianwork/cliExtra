@@ -36,10 +36,7 @@
 2. **初始化 Amazon Q CLI**
    ```bash
    # 初始化 Amazon Q CLI（免费版本或 Pro 版本）
-   q auth login
-   
-   # 验证安装
-   q --version
+   q login
    ```
 
 ### 快速安装
@@ -96,13 +93,13 @@ qq start --name backend --role backend  # 启动并应用后端工程师角色
 qq list
 
 # 列出所有实例（JSON格式，包含详细信息和namespace）
-qq list --json
+qq list -o json
 
 # 显示指定实例的详细信息（包含namespace）
 qq list myinstance
 
 # 显示指定实例的详细信息（JSON格式，包含namespace）
-qq list myinstance --json
+qq list myinstance -o json
 
 # 查看实例状态
 qq status myproject
@@ -170,7 +167,7 @@ qq ns create devops
 # 查看namespace
 qq ns show                    # 显示所有namespace
 qq ns show frontend           # 显示frontend namespace详情
-qq ns show --json             # JSON格式输出
+qq ns show -o json            # JSON格式输出
 
 # 删除namespace
 qq ns delete frontend         # 删除空的namespace
@@ -189,6 +186,9 @@ qq set-ns myinstance backend  # 将实例移动到backend namespace
 ```bash
 # 查看所有可用工具
 qq tools list
+
+# 以JSON格式查看所有可用工具
+qq tools list -o json
 
 # 显示工具详细信息
 qq tools show git

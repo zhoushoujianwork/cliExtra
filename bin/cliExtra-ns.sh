@@ -18,7 +18,7 @@ show_help() {
     echo ""
     echo "选项:"
     echo "  --force             强制删除namespace（即使有实例）"
-    echo "  --json              JSON格式输出"
+    echo "  -o, --output <format>  输出格式：table（默认）或 json"
     echo ""
     echo "示例:"
     echo "  cliExtra ns show                    # 显示所有namespace"
@@ -273,19 +273,64 @@ show_namespace_details() {
     fi
 }
 
+# 解析参数
+parse_ns_args() {
+    local command=""
+    local target=""
+    local output_format="table"
+    local force=false
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            show|list|create|delete)
+                command="$1"
+                shift
+                ;;
+            -o|--output)
+                output_format="$2"
+                shift 2
+                ;;
+            --json)
+                # 向后兼容
+                output_format="json"
+                shift
+                ;;
+            --force)
+                force=true
+                shift
+                ;;
+            --help|-h)
+                show_help
+                exit 0
+                ;;
+            *)
+                if [[ -z "$target" ]]; then
+                    target="$1"
+                fi
+                shift
+                ;;
+        esac
+    done
+    
+    echo "$command|$target|$output_format|$force"
+}
+
 # 主逻辑
-case "${1:-}" in
+args_result=$(parse_ns_args "$@")
+IFS='|' read -r command target output_format force <<< "$args_result"
+
+case "$command" in
     "show"|"list")
-        if [[ -n "$2" && "$2" != "--json" ]]; then
+        if [[ -n "$target" ]]; then
             # 显示指定namespace
-            if [[ "$3" == "--json" ]]; then
-                show_namespace_details "$2" "--json"
+            if [[ "$output_format" == "json" ]]; then
+                show_namespace_details "$target" "--json"
             else
-                show_namespace_details "$2"
+                show_namespace_details "$target"
             fi
         else
             # 显示所有namespace
-            if [[ "$2" == "--json" ]]; then
+            if [[ "$output_format" == "json" ]]; then
                 show_all_namespaces "--json"
             else
                 show_all_namespaces
@@ -293,20 +338,20 @@ case "${1:-}" in
         fi
         ;;
     "create")
-        create_namespace "$2"
+        create_namespace "$target"
         ;;
     "delete")
-        if [[ "$3" == "--force" ]]; then
-            delete_namespace "$2" "--force"
+        if [[ "$force" == "true" ]]; then
+            delete_namespace "$target" "--force"
         else
-            delete_namespace "$2"
+            delete_namespace "$target"
         fi
         ;;
     "help"|"")
         show_help
         ;;
     *)
-        echo "未知命令: $1"
+        echo "未知命令: $command"
         show_help
         ;;
 esac

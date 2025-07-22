@@ -8,24 +8,24 @@ source "$SCRIPT_DIR/cliExtra-common.sh"
 
 # 显示帮助
 show_help() {
-    echo "用法: cliExtra list [instance_id] [--json]"
+    echo "用法: cliExtra list [instance_id] [-o json]"
     echo ""
     echo "参数:"
     echo "  instance_id   显示指定实例的详细信息"
     echo ""
     echo "选项:"
-    echo "  --json        以JSON格式输出信息"
+    echo "  -o, --output <format>  输出格式：table（默认）或 json"
     echo ""
     echo "输出格式:"
     echo "  无参数: 每行一个实例ID，便于脚本解析"
     echo "  有实例ID: 显示该实例的详细信息"
-    echo "  --json: 结构化的JSON格式输出"
+    echo "  -o json: 结构化的JSON格式输出"
     echo ""
     echo "示例:"
     echo "  cliExtra list                    # 列出所有实例ID"
-    echo "  cliExtra list --json             # JSON格式列出所有实例"
+    echo "  cliExtra list -o json            # JSON格式列出所有实例"
     echo "  cliExtra list myinstance         # 显示实例myinstance的详细信息"
-    echo "  cliExtra list myinstance --json  # JSON格式显示实例详细信息"
+    echo "  cliExtra list myinstance -o json # JSON格式显示实例详细信息"
 }
 
 # 解析参数
@@ -34,7 +34,14 @@ TARGET_INSTANCE=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        -o|--output)
+            if [[ "$2" == "json" ]]; then
+                JSON_OUTPUT=true
+            fi
+            shift 2
+            ;;
         --json)
+            # 保持向后兼容
             JSON_OUTPUT=true
             shift
             ;;

@@ -17,7 +17,7 @@ show_help() {
   $0 resume <instance_id>      - 恢复已停止的实例，载入历史上下文    echo "  $0 send <instance_id> <msg>  - 发送消息到指定实例"
     echo "  $0 attach <instance_id>      - 接管指定实例终端"
     echo "  $0 stop <instance_id>        - 停止指定实例"
-    echo "  $0 list [instance_id] [--json] - 列出所有实例或显示指定实例详情"
+    echo "  $0 list [instance_id] [-o json] - 列出所有实例或显示指定实例详情"
     echo "  $0 status <instance_id>      - 显示实例状态"
     echo "  $0 logs <instance_id> [lines] - 查看实例日志"
     echo "  $0 monitor <instance_id>     - 实时监控实例输出"
