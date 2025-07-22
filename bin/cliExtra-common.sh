@@ -54,6 +54,45 @@ find_instance_project() {
     return 1
 }
 
+# 获取 namespace 配置目录
+get_ns_config_dir() {
+    echo "$CLIEXTRA_CONFIG_DIR"
+}
+
+# 获取 namespace 配置文件路径
+get_ns_config_file() {
+    local ns_name="$1"
+    echo "$(get_ns_config_dir)/$ns_name.conf"
+}
+
+# 检查 namespace 是否存在
+namespace_exists() {
+    local ns_name="$1"
+    local ns_file="$(get_ns_config_file "$ns_name")"
+    local ns_dir="$(get_namespace_dir "$ns_name")"
+    
+    [[ -f "$ns_file" ]] || [[ -d "$ns_dir" ]]
+}
+
+# 检查是否为保留的 namespace 名称
+is_reserved_namespace() {
+    local ns_name="$1"
+    case "$ns_name" in
+        "config"|"logs"|"cache"|"projects"|"bin"|"tools"|"rules"|"docs")
+            return 0
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+}
+
+# 验证 namespace 名称格式
+validate_namespace_name() {
+    local ns_name="$1"
+    [[ "$ns_name" =~ ^[a-zA-Z0-9_-]+$ ]]
+}
+
 # 查找实例信息目录
 find_instance_info_dir() {
     local instance_id="$1"

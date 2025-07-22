@@ -28,13 +28,6 @@ show_help() {
     echo "  cliExtra ns delete frontend --force # 强制删除frontend namespace"
 }
 
-# 获取namespace配置目录
-get_ns_config_dir() {
-    local config_dir="$CLIEXTRA_HOME/namespaces"
-    mkdir -p "$config_dir"
-    echo "$config_dir"
-}
-
 # 创建namespace
 create_namespace() {
     local ns_name="$1"
@@ -45,22 +38,21 @@ create_namespace() {
     fi
     
     # 验证namespace名称
-    if [[ ! "$ns_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+    if ! validate_namespace_name "$ns_name"; then
         echo "错误: namespace名称只能包含字母、数字、下划线和连字符"
         return 1
     fi
     
     # 检查是否为保留名称
-    if [[ "$ns_name" == "config" || "$ns_name" == "logs" || "$ns_name" == "cache" || "$ns_name" == "projects" ]]; then
+    if is_reserved_namespace "$ns_name"; then
         echo "错误: '$ns_name' 是保留名称，不能用作namespace"
         return 1
     fi
     
-    local ns_config_dir=$(get_ns_config_dir)
-    local ns_file="$ns_config_dir/$ns_name.conf"
+    local ns_file="$(get_ns_config_file "$ns_name")"
     local ns_dir="$(get_namespace_dir "$ns_name")"
     
-    if [[ -f "$ns_file" || -d "$ns_dir" ]]; then
+    if namespace_exists "$ns_name"; then
         echo "namespace '$ns_name' 已存在"
         return 1
     fi
@@ -76,13 +68,16 @@ create_namespace() {
     )
     
     for dir in "${dirs_to_create[@]}"; do
-        if mkdir -p "$dir"; then
+        if safe_mkdir "$dir"; then
             echo "✓ 创建目录: $dir"
         else
             echo "❌ 创建目录失败: $dir"
             return 1
         fi
     done
+    
+    # 确保配置目录存在
+    safe_mkdir "$(get_ns_config_dir)"
     
     # 创建namespace配置文件
     cat > "$ns_file" << EOF
@@ -140,11 +135,10 @@ delete_namespace() {
         return 1
     fi
     
-    local ns_config_dir=$(get_ns_config_dir)
-    local ns_file="$ns_config_dir/$ns_name.conf"
+    local ns_file="$(get_ns_config_file "$ns_name")"
     local ns_dir="$(get_namespace_dir "$ns_name")"
     
-    if [[ ! -f "$ns_file" && ! -d "$ns_dir" ]]; then
+    if ! namespace_exists "$ns_name"; then
         echo "错误: namespace '$ns_name' 不存在"
         return 1
     fi
@@ -176,8 +170,11 @@ delete_namespace() {
     
     # 删除namespace配置文件
     if [[ -f "$ns_file" ]]; then
-        rm -f "$ns_file"
-        echo "✓ 删除配置文件: $ns_file"
+        if safe_remove "$ns_file"; then
+            echo "✓ 删除配置文件: $ns_file"
+        else
+            echo "❌ 删除配置文件失败: $ns_file"
+        fi
     fi
     
     # 删除namespace目录及其所有内容
@@ -194,7 +191,7 @@ delete_namespace() {
         fi
         
         # 删除整个namespace目录
-        if rm -rf "$ns_dir"; then
+        if safe_remove "$ns_dir"; then
             echo "✓ 删除namespace目录: $ns_dir"
         else
             echo "❌ 删除namespace目录失败: $ns_dir"
@@ -211,7 +208,7 @@ delete_namespace() {
     for old_dir in "${old_ns_dirs[@]}"; do
         if [[ -d "$old_dir" ]]; then
             echo "清理旧结构目录: $old_dir"
-            rm -rf "$old_dir" 2>/dev/null || true
+            safe_remove "$old_dir" 2>/dev/null || true
         fi
     done
     
@@ -271,7 +268,7 @@ get_instance_namespace() {
 # 显示所有namespace
 show_all_namespaces() {
     local json_output="$1"
-    local ns_config_dir=$(get_ns_config_dir)
+    local ns_config_dir="$(get_ns_config_dir)"
     
     if [[ "$json_output" == "--json" ]]; then
         echo "{"
@@ -328,8 +325,8 @@ show_namespace_details() {
     local ns_name="$1"
     local json_output="$2"
     
-    local ns_config_dir=$(get_ns_config_dir)
-    local ns_file="$ns_config_dir/$ns_name.conf"
+    local ns_config_dir="$(get_ns_config_dir)"
+    local ns_file="$(get_ns_config_file "$ns_name")"
     
     if [[ "$ns_name" != "default" && ! -f "$ns_file" ]]; then
         echo "错误: namespace '$ns_name' 不存在"

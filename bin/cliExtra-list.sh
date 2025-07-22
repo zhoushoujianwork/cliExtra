@@ -8,13 +8,14 @@ source "$SCRIPT_DIR/cliExtra-common.sh"
 
 # 显示帮助
 show_help() {
-    echo "用法: cliExtra list [instance_id] [-o json]"
+    echo "用法: cliExtra list [instance_id] [-o json] [-n namespace]"
     echo ""
     echo "参数:"
     echo "  instance_id   显示指定实例的详细信息"
     echo ""
     echo "选项:"
-    echo "  -o, --output <format>  输出格式：table（默认）或 json"
+    echo "  -o, --output <format>     输出格式：table（默认）或 json"
+    echo "  -n, --namespace <name>    只显示指定 namespace 中的实例"
     echo ""
     echo "输出格式:"
     echo "  无参数: 每行一个实例ID，便于脚本解析"
@@ -22,15 +23,18 @@ show_help() {
     echo "  -o json: 结构化的JSON格式输出"
     echo ""
     echo "示例:"
-    echo "  cliExtra list                    # 列出所有实例ID"
-    echo "  cliExtra list -o json            # JSON格式列出所有实例"
-    echo "  cliExtra list myinstance         # 显示实例myinstance的详细信息"
-    echo "  cliExtra list myinstance -o json # JSON格式显示实例详细信息"
+    echo "  cliExtra list                         # 列出所有实例ID"
+    echo "  cliExtra list -o json                 # JSON格式列出所有实例"
+    echo "  cliExtra list -n frontend             # 列出frontend namespace中的实例"
+    echo "  cliExtra list -n backend -o json      # JSON格式列出backend namespace中的实例"
+    echo "  cliExtra list myinstance              # 显示实例myinstance的详细信息"
+    echo "  cliExtra list myinstance -o json      # JSON格式显示实例详细信息"
 }
 
 # 解析参数
 JSON_OUTPUT=false
 TARGET_INSTANCE=""
+FILTER_NAMESPACE=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -38,6 +42,10 @@ while [[ $# -gt 0 ]]; do
             if [[ "$2" == "json" ]]; then
                 JSON_OUTPUT=true
             fi
+            shift 2
+            ;;
+        -n|--namespace)
+            FILTER_NAMESPACE="$2"
             shift 2
             ;;
         --json)
@@ -215,6 +223,12 @@ get_all_instances() {
         for ns_dir in "$CLIEXTRA_HOME/namespaces"/*; do
             if [ -d "$ns_dir/instances" ]; then
                 local namespace=$(basename "$ns_dir")
+                
+                # 如果指定了namespace过滤，跳过不匹配的namespace
+                if [[ -n "$FILTER_NAMESPACE" && "$namespace" != "$FILTER_NAMESPACE" ]]; then
+                    continue
+                fi
+                
                 for instance_dir in "$ns_dir/instances"/instance_*; do
                     if [ -d "$instance_dir" ]; then
                         local instance_id=$(basename "$instance_dir" | sed 's/instance_//')
@@ -257,6 +271,14 @@ get_all_instances() {
             
             # 如果没有在新结构中找到，添加到列表中
             if [ "$found" = false ]; then
+                # 获取namespace信息
+                local namespace=$(get_instance_namespace "$instance_id")
+                
+                # 如果指定了namespace过滤，跳过不匹配的namespace
+                if [[ -n "$FILTER_NAMESPACE" && "$namespace" != "$FILTER_NAMESPACE" ]]; then
+                    continue
+                fi
+                
                 # 检查会话状态
                 local client_count=$(tmux list-clients -t "$session_info" 2>/dev/null | wc -l)
                 if [ "$client_count" -gt 0 ]; then
@@ -264,9 +286,6 @@ get_all_instances() {
                 else
                     status="Detached"
                 fi
-                
-                # 获取namespace信息
-                local namespace=$(get_instance_namespace "$instance_id")
                 
                 instances+=("$instance_id")
                 instance_data+=("$instance_id:$status:$session_info:$namespace")
@@ -301,6 +320,14 @@ output_json() {
     local instance_data=("$@")
     
     echo "{"
+    
+    # 添加过滤信息
+    if [[ -n "$FILTER_NAMESPACE" ]]; then
+        echo "  \"filter\": {"
+        echo "    \"namespace\": \"$FILTER_NAMESPACE\""
+        echo "  },"
+    fi
+    
     echo "  \"instances\": ["
     
     local first=true
