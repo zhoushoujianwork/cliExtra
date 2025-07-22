@@ -18,7 +18,7 @@ show_help() {
     echo "  --format <fmt>    输出格式 (text|json|timeline)"
     echo "  --limit <n>       限制显示记录数量"
     echo "  --since <date>    显示指定时间后的记录"
-    echo "  --type <type>     过滤消息类型 (message|broadcast|ai_response)"
+    echo "  --type <type>     过滤消息类型 (message|broadcast)"
     echo ""
     echo "示例:"
     echo "  cliExtra replay instance backend-api"
@@ -53,9 +53,6 @@ format_sender() {
             ;;
         "broadcast")
             echo "📢 广播"
-            ;;
-        "ai")
-            echo "🤖 AI助手"
             ;;
         *)
             echo "❓ $sender"
@@ -115,9 +112,6 @@ output_timeline_format() {
                 ;;
             "broadcast")
                 echo -e "\033[0;33m$formatted_time\033[0m $formatted_sender: $message"
-                ;;
-            "ai_response")
-                echo -e "\033[0;32m$formatted_time\033[0m $formatted_sender: ${message:0:100}..."
                 ;;
             *)
                 echo "$formatted_time $formatted_sender: $message"
@@ -277,9 +271,6 @@ replay_namespace() {
                         ;;
                     "broadcast")
                         echo -e "\033[0;33m$formatted_time\033[0m [$instance_id] $formatted_sender: $message"
-                        ;;
-                    "ai_response")
-                        echo -e "\033[0;32m$formatted_time\033[0m [$instance_id] $formatted_sender: ${message:0:100}..."
                         ;;
                     *)
                         echo "$formatted_time [$instance_id] $formatted_sender: $message"

@@ -398,15 +398,6 @@ EOF
         echo "接管会话: tmux attach-session -t $session_name"
         echo "分离会话: 在会话中按 Ctrl+B, D"
         
-        # 自动启动AI回答监听
-        echo ""
-        echo "启动AI回答监听..."
-        if "$SCRIPT_DIR/cliExtra-monitor.sh" "$instance_id" --daemon >/dev/null 2>&1; then
-            echo "✓ AI回答监听已启动"
-        else
-            echo "警告: AI回答监听启动失败"
-        fi
-        
         # 保存实例信息
         cat > "$session_dir/info" << EOF
 INSTANCE_ID="$instance_id"

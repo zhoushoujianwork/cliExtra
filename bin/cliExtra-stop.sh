@@ -85,11 +85,6 @@ stop_tmux_instance() {
         fi
         
         echo "✓ 实例 $instance_id 已停止"
-        
-        # 停止AI回答监听
-        if "$SCRIPT_DIR/cliExtra-monitor.sh" "$instance_id" --stop >/dev/null 2>&1; then
-            echo "✓ AI回答监听已停止"
-        fi
     else
         echo "实例 $instance_id 未运行"
     fi

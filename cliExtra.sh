@@ -16,7 +16,6 @@ show_help() {
     echo "  $0 start [path] [--name <name>] - 启动实例"
   $0 resume <instance_id>      - 恢复已停止的实例，载入历史上下文    echo "  $0 send <instance_id> <msg>  - 发送消息到指定实例"
     echo "  $0 attach <instance_id>      - 接管指定实例终端"
-    echo "  $0 monitor <instance_id>     - 监听并记录AI回答"
     echo "  $0 replay <type> <target>    - 回放对话记录"
     echo "  $0 stop <instance_id|all>    - 停止指定实例或所有实例"
     echo "  $0 list [instance_id] [-o json] - 列出所有实例或显示指定实例详情"
@@ -118,9 +117,6 @@ case "${1:-}" in
         ;;
     "logs")
         "$SCRIPT_DIR/bin/cliExtra-logs.sh" "${@:2}"
-        ;;
-    "monitor")
-        "$SCRIPT_DIR/bin/cliExtra-monitor.sh" "${@:2}"
         ;;
     "replay")
         "$SCRIPT_DIR/bin/cliExtra-replay.sh" "${@:2}"
