@@ -28,6 +28,7 @@ show_help() {
     echo "  $0 role <command>            - 角色预设管理"
     echo "  $0 ns <command>              - namespace管理"
     echo "  $0 set-ns <id> <namespace>   - 修改实例的namespace"
+    echo "  $0 workflow <command>        - workflow管理"
     echo "  $0 broadcast <message>       - 广播消息到实例"
     echo "  $0 tools <command>           - 工具管理"
     echo "  $0 replay <command>          - 对话回放"
@@ -138,6 +139,9 @@ case "${1:-}" in
         ;;
     "set-ns")
         "$SCRIPT_DIR/bin/cliExtra-set-ns.sh" "${@:2}"
+        ;;
+    "workflow")
+        "$SCRIPT_DIR/bin/cliExtra-workflow.sh" "${@:2}"
         ;;
     "broadcast")
         "$SCRIPT_DIR/bin/cliExtra-broadcast.sh" "${@:2}"

@@ -1,12 +1,56 @@
+#!/bin/bash
+
+# cliExtra-workflow-loader.sh - Workflow 自动加载脚本
+# 在实例启动时自动加载当前namespace的workflow配置到AI上下文
+
+# 获取脚本目录
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/cliExtra-common.sh"
+
+# 生成 workflow 上下文规则文件
+generate_workflow_context() {
+    local namespace="$1"
+    local project_dir="$2"
+    local workflow_file="$(get_workflow_file "$namespace")"
+    local context_file="$project_dir/.amazonq/rules/workflow-context.md"
+    
+    # 确保目录存在
+    mkdir -p "$(dirname "$context_file")"
+    
+    # 生成上下文文件
+    cat > "$context_file" << 'EOF'
 # Workflow 上下文规则
 
 ## 🔄 当前 Namespace Workflow 配置
 
 你必须严格遵循以下 workflow 配置进行工作和协作：
-执行命令获取最新的 workflow 配置：
-```bash
-cliExtra workflow show <namespace>
-```
+
+EOF
+
+    # 如果存在 workflow 配置，则添加到上下文中
+    if [[ -f "$workflow_file" ]]; then
+        echo "### Workflow 配置内容" >> "$context_file"
+        echo '```yaml' >> "$context_file"
+        cat "$workflow_file" >> "$context_file"
+        echo '```' >> "$context_file"
+        echo "" >> "$context_file"
+        
+        # 解析并生成具体的行为指导
+        generate_workflow_guidance "$workflow_file" >> "$context_file"
+    else
+        echo "### ⚠️ 未找到 Workflow 配置" >> "$context_file"
+        echo "当前 namespace '$namespace' 没有 workflow.yaml 配置文件。" >> "$context_file"
+        echo "请使用基本的协作规则进行工作。" >> "$context_file"
+    fi
+    
+    echo "✅ Workflow 上下文已生成: $context_file"
+}
+
+# 解析 workflow 并生成具体的行为指导
+generate_workflow_guidance() {
+    local workflow_file="$1"
+    
+    cat << 'EOF'
 
 ## 🎯 基于 Workflow 的行为指导
 
@@ -84,3 +128,27 @@ cliExtra send <target_instance> "问题报告：
 
 **重要**: 这个 workflow 配置是强制性的，必须严格遵循。任何偏离 workflow 的行为都可能影响团队协作效率。
 
+EOF
+}
+
+# 获取 workflow 文件路径
+get_workflow_file() {
+    local ns_name="$1"
+    local ns_dir="$CLIEXTRA_NAMESPACES_DIR/$ns_name"
+    echo "$ns_dir/workflow.yaml"
+}
+
+# 主函数
+main() {
+    local namespace="${1:-default}"
+    local project_dir="${2:-$(pwd)}"
+    
+    echo "🔄 正在为 namespace '$namespace' 生成 workflow 上下文..."
+    generate_workflow_context "$namespace" "$project_dir"
+    echo "✅ Workflow 上下文生成完成"
+}
+
+# 如果直接执行脚本
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    main "$@"
+fi

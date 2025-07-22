@@ -436,6 +436,14 @@ EOF
     # 同步rules到项目目录
     sync_rules_to_project "$project_dir"
     
+    # 自动加载 workflow 上下文
+    echo "🔄 正在加载 namespace workflow 上下文..."
+    if "$SCRIPT_DIR/cliExtra-workflow-loader.sh" "$namespace" "$project_dir"; then
+        echo "✓ Workflow 上下文加载完成"
+    else
+        echo "⚠ Workflow 上下文加载失败，使用默认协作规则"
+    fi
+    
     # 安装默认工具
     install_default_tools "$project_dir"
     
