@@ -35,7 +35,14 @@ case "$CLIEXTRA_OS" in
         CLIEXTRA_HOME="$HOME/Library/Application Support/cliExtra"
         ;;
     "linux")
-        CLIEXTRA_HOME="/opt/cliExtra"
+        # 优先使用用户目录，避免权限问题
+        if [ -w "/opt" ] && [ "$EUID" -eq 0 ]; then
+            # 如果是 root 用户且有写权限，使用系统级目录
+            CLIEXTRA_HOME="/opt/cliExtra"
+        else
+            # 普通用户使用用户目录
+            CLIEXTRA_HOME="$HOME/.cliExtra"
+        fi
         ;;
     *)
         CLIEXTRA_HOME="$HOME/.cliExtra"
@@ -264,11 +271,28 @@ show_config() {
     echo "Projects: $CLIEXTRA_PROJECTS_DIR"
     echo "Logs: $CLIEXTRA_LOGS_DIR"
     echo "Cache: $CLIEXTRA_CACHE_DIR"
+    echo ""
+    echo "=== 目录状态 ==="
+    if [ -d "$CLIEXTRA_HOME" ]; then
+        echo "✓ 工作目录存在"
+        echo "  实例数量: $(find "$CLIEXTRA_NAMESPACES_DIR" -name "instance_*" -type d 2>/dev/null | wc -l | tr -d ' ')"
+        echo "  Namespace数量: $(find "$CLIEXTRA_NAMESPACES_DIR" -maxdepth 1 -type d 2>/dev/null | grep -v "^$CLIEXTRA_NAMESPACES_DIR$" | wc -l | tr -d ' ')"
+    else
+        echo "⚠ 工作目录不存在，将在首次使用时创建"
+    fi
     
     if [ -f "$CLIEXTRA_USER_CONFIG" ]; then
         echo ""
         echo "=== 用户配置 ==="
         cat "$CLIEXTRA_USER_CONFIG"
+    fi
+    
+    echo ""
+    echo "=== 权限检查 ==="
+    if [ -w "$(dirname "$CLIEXTRA_HOME")" ] || [ -w "$CLIEXTRA_HOME" ]; then
+        echo "✓ 工作目录可写"
+    else
+        echo "⚠ 工作目录不可写，可能需要权限调整"
     fi
 }
 
