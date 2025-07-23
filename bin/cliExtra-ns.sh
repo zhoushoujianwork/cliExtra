@@ -228,7 +228,23 @@ get_instances_in_namespace() {
     local ns_name="$1"
     local instances=""
     
-    # 遍历所有tmux会话，查找属于指定namespace的实例
+    # 方法1: 从namespace目录结构中直接获取实例
+    local ns_dir="$(get_namespace_dir "$ns_name")"
+    local instances_dir="$ns_dir/$CLIEXTRA_INSTANCES_SUBDIR"
+    
+    if [[ -d "$instances_dir" ]]; then
+        for instance_dir in "$instances_dir"/instance_*; do
+            if [[ -d "$instance_dir" ]]; then
+                local instance_id=$(basename "$instance_dir" | sed 's/^instance_//')
+                # 检查tmux会话是否存在
+                if tmux has-session -t "q_instance_$instance_id" 2>/dev/null; then
+                    instances="$instances $instance_id"
+                fi
+            fi
+        done
+    fi
+    
+    # 方法2: 遍历所有tmux会话，查找属于指定namespace的实例（向后兼容）
     while IFS= read -r session_line; do
         if [[ "$session_line" == q_instance_* ]]; then
             local session_info=$(echo "$session_line" | cut -d: -f1)
@@ -237,19 +253,37 @@ get_instances_in_namespace() {
             # 检查实例的namespace
             local instance_ns=$(get_instance_namespace "$instance_id")
             if [[ "$instance_ns" == "$ns_name" ]]; then
-                instances="$instances $instance_id"
+                # 检查是否已经在列表中
+                if [[ ! " $instances " =~ " $instance_id " ]]; then
+                    instances="$instances $instance_id"
+                fi
             fi
         fi
-    done < <(tmux list-sessions -F "#{session_name}" 2>/dev/null)
+    done < <(tmux list-sessions -F "#{session_name}" 2>/dev/null || true)
     
-    echo "$instances"
+    # 清理并输出结果
+    echo "$instances" | xargs
 }
 
 # 获取实例的namespace
 get_instance_namespace() {
     local instance_id="$1"
     
-    # 查找实例的项目目录
+    # 方法1: 从新的namespace目录结构中查找
+    if [[ -d "$CLIEXTRA_NAMESPACES_DIR" ]]; then
+        for ns_dir in "$CLIEXTRA_NAMESPACES_DIR"/*; do
+            if [[ -d "$ns_dir" ]]; then
+                local ns_name=$(basename "$ns_dir")
+                local instance_dir="$ns_dir/$CLIEXTRA_INSTANCES_SUBDIR/instance_$instance_id"
+                if [[ -d "$instance_dir" ]]; then
+                    echo "$ns_name"
+                    return 0
+                fi
+            fi
+        done
+    fi
+    
+    # 方法2: 从项目目录中查找（向后兼容）
     local project_dir=$(find_instance_project "$instance_id")
     if [[ $? -eq 0 ]]; then
         local instance_dir="$project_dir/.cliExtra/instances/instance_$instance_id"
@@ -257,42 +291,111 @@ get_instance_namespace() {
         
         if [[ -f "$ns_file" ]]; then
             cat "$ns_file"
-        else
-            echo "default"
+            return 0
         fi
-    else
-        echo "default"
     fi
+    
+    # 默认返回default namespace
+    echo "default"
+}
+
+# 获取所有存在的namespace
+get_all_namespaces() {
+    local namespaces=()
+    local ns_config_dir="$(get_ns_config_dir)"
+    
+    # 从配置文件中获取namespace
+    if [[ -d "$ns_config_dir" ]]; then
+        for ns_file in "$ns_config_dir"/*.conf; do
+            if [[ -f "$ns_file" ]]; then
+                local ns_name=$(basename "$ns_file" .conf)
+                namespaces+=("$ns_name")
+            fi
+        done
+    fi
+    
+    # 从namespace目录中获取namespace
+    if [[ -d "$CLIEXTRA_NAMESPACES_DIR" ]]; then
+        for ns_dir in "$CLIEXTRA_NAMESPACES_DIR"/*; do
+            if [[ -d "$ns_dir" ]]; then
+                local ns_name=$(basename "$ns_dir")
+                # 检查是否已经在列表中
+                local found=false
+                for existing_ns in "${namespaces[@]}"; do
+                    if [[ "$existing_ns" == "$ns_name" ]]; then
+                        found=true
+                        break
+                    fi
+                done
+                if [[ "$found" == false ]]; then
+                    namespaces+=("$ns_name")
+                fi
+            fi
+        done
+    fi
+    
+    # 确保default namespace总是存在
+    local has_default=false
+    for ns in "${namespaces[@]}"; do
+        if [[ "$ns" == "default" ]]; then
+            has_default=true
+            break
+        fi
+    done
+    if [[ "$has_default" == false ]]; then
+        namespaces+=("default")
+    fi
+    
+    # 排序并输出
+    printf '%s\n' "${namespaces[@]}" | sort
 }
 
 # 显示所有namespace
 show_all_namespaces() {
     local json_output="$1"
-    local ns_config_dir="$(get_ns_config_dir)"
+    local namespaces=($(get_all_namespaces))
     
     if [[ "$json_output" == "--json" ]]; then
         echo "{"
         echo "  \"namespaces\": ["
         
         local first=true
-        for ns_file in "$ns_config_dir"/*.conf; do
-            if [[ -f "$ns_file" ]]; then
-                local ns_name=$(basename "$ns_file" .conf)
-                local instances_in_ns=$(get_instances_in_namespace "$ns_name")
-                local instance_count=$(echo "$instances_in_ns" | wc -w)
-                
-                if [[ "$first" == true ]]; then
-                    first=false
-                else
-                    echo ","
+        for ns_name in "${namespaces[@]}"; do
+            local instances_in_ns=$(get_instances_in_namespace "$ns_name")
+            local instance_count=0
+            local instances_array=""
+            
+            # 正确计算实例数量和构建数组
+            if [[ -n "$instances_in_ns" && "$instances_in_ns" != " " ]]; then
+                # 移除前后空格并分割
+                instances_in_ns=$(echo "$instances_in_ns" | xargs)
+                if [[ -n "$instances_in_ns" ]]; then
+                    instance_count=$(echo "$instances_in_ns" | wc -w)
+                    # 构建JSON数组 - 修复格式
+                    instances_array=""
+                    local first_instance=true
+                    for instance in $instances_in_ns; do
+                        if [[ "$first_instance" == true ]]; then
+                            first_instance=false
+                            instances_array="\"$instance\""
+                        else
+                            instances_array="$instances_array, \"$instance\""
+                        fi
+                    done
                 fi
-                
-                echo -n "    {"
-                echo -n "\"name\": \"$ns_name\", "
-                echo -n "\"instance_count\": $instance_count, "
-                echo -n "\"instances\": [$(echo "$instances_in_ns" | sed 's/ /", "/g' | sed 's/^/"/;s/$/"/')]"
-                echo -n "}"
             fi
+            
+            if [[ "$first" == true ]]; then
+                first=false
+            else
+                echo ","
+            fi
+            
+            echo -n "    {"
+            echo -n "\"name\": \"$ns_name\", "
+            echo -n "\"instance_count\": $instance_count, "
+            echo -n "\"instances\": [$instances_array]"
+            echo -n "}"
         done
         
         echo ""
@@ -303,20 +406,20 @@ show_all_namespaces() {
         printf "%-15s %-10s %s\n" "NAME" "INSTANCES" "INSTANCE_IDS"
         printf "%-15s %-10s %s\n" "----" "---------" "------------"
         
-        for ns_file in "$ns_config_dir"/*.conf; do
-            if [[ -f "$ns_file" ]]; then
-                local ns_name=$(basename "$ns_file" .conf)
-                local instances_in_ns=$(get_instances_in_namespace "$ns_name")
-                local instance_count=$(echo "$instances_in_ns" | wc -w)
-                
-                printf "%-15s %-10s %s\n" "$ns_name" "$instance_count" "$instances_in_ns"
+        for ns_name in "${namespaces[@]}"; do
+            local instances_in_ns=$(get_instances_in_namespace "$ns_name")
+            local instance_count=0
+            
+            # 正确计算实例数量
+            if [[ -n "$instances_in_ns" && "$instances_in_ns" != " " ]]; then
+                instances_in_ns=$(echo "$instances_in_ns" | xargs)
+                if [[ -n "$instances_in_ns" ]]; then
+                    instance_count=$(echo "$instances_in_ns" | wc -w)
+                fi
             fi
+            
+            printf "%-15s %-10s %s\n" "$ns_name" "$instance_count" "$instances_in_ns"
         done
-        
-        # 显示default namespace
-        local default_instances=$(get_instances_in_namespace "default")
-        local default_count=$(echo "$default_instances" | wc -w)
-        printf "%-15s %-10s %s\n" "default" "$default_count" "$default_instances"
     fi
 }
 

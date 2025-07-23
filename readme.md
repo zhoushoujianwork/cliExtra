@@ -450,5 +450,14 @@ sudo ln -sf /path/to/cliExtra/cliExtra.sh /usr/local/bin/qq
 - **Git**: 仓库克隆（可选）
 - **Bash**: 脚本执行
 
+## 更新日志
+
+### 2025-07-23
+- **修复**: 修复了 `qq ns show -o json` 命令的显示问题
+  - 现在能正确显示所有存在的 namespace（包括 default）
+  - 修复了 JSON 输出格式，确保 instances 数组格式正确
+  - 改进了 namespace 检测逻辑，支持从目录结构和配置文件中获取
+  - 增强了实例计数的准确性
+
 ## 许可证
 MIT License

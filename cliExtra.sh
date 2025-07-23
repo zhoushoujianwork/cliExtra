@@ -141,7 +141,7 @@ case "${1:-}" in
         "$SCRIPT_DIR/bin/cliExtra-set-ns.sh" "${@:2}"
         ;;
     "workflow")
-        "$SCRIPT_DIR/bin/cliExtra-workflow.sh" "${@:2}"
+        "$SCRIPT_DIR/bin/cliExtra-workflow-adapter.sh" "${@:2}"
         ;;
     "broadcast")
         "$SCRIPT_DIR/bin/cliExtra-broadcast.sh" "${@:2}"

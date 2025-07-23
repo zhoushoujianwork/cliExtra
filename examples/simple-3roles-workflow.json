@@ -1,0 +1,129 @@
+{
+  "version": "2.0",
+  "metadata": {
+    "name": "三角色协作开发流程",
+    "description": "后端->前端->运维的简单协作流程",
+    "namespace": "simple_dev"
+  },
+  "roles": {
+    "backend": {
+      "name": "后端工程师",
+      "instance_pattern": "*backend*",
+      "responsibilities": ["API开发", "接口设计", "数据库操作"],
+      "tools": ["git", "database", "postman"]
+    },
+    "frontend": {
+      "name": "前端工程师", 
+      "instance_pattern": "*frontend*",
+      "responsibilities": ["UI实现", "接口调用", "用户交互"],
+      "tools": ["git", "npm", "browser"]
+    },
+    "devops": {
+      "name": "运维工程师",
+      "instance_pattern": "*devops*", 
+      "responsibilities": ["部署", "监控", "环境管理"],
+      "tools": ["docker", "kubernetes", "monitoring"]
+    }
+  },
+  "nodes": {
+    "start": {
+      "id": "start",
+      "type": "start",
+      "title": "新需求开始"
+    },
+    "backend_dev": {
+      "id": "backend_dev",
+      "type": "task",
+      "title": "后端接口开发",
+      "owner": "backend",
+      "deliverables": ["API接口", "接口文档", "测试数据"],
+      "completion_trigger": {
+        "action": "notify_next",
+        "target": "frontend",
+        "message_template": "🚀 后端接口开发完成！\n\n📋 完成内容：\n{deliverables}\n\n📖 接口文档：{api_docs}\n🔗 测试地址：{test_url}\n\n请开始前端集成开发，有问题随时联系！",
+        "auto_send": true
+      }
+    },
+    "frontend_review": {
+      "id": "frontend_review",
+      "type": "decision",
+      "title": "前端集成和评审",
+      "owner": "frontend",
+      "options": [
+        {
+          "choice": "accept",
+          "label": "接口满足需求",
+          "next": "frontend_dev"
+        },
+        {
+          "choice": "reject", 
+          "label": "需要后端调整",
+          "next": "backend_feedback"
+        }
+      ]
+    },
+    "backend_feedback": {
+      "id": "backend_feedback",
+      "type": "task",
+      "title": "后端根据反馈调整",
+      "owner": "backend",
+      "trigger_message": "需要调整接口",
+      "completion_trigger": {
+        "action": "notify_next",
+        "target": "frontend", 
+        "message_template": "🔄 接口已根据反馈调整完成！\n\n🛠️ 调整内容：\n{changes}\n\n请重新测试集成，谢谢！",
+        "auto_send": true
+      }
+    },
+    "frontend_dev": {
+      "id": "frontend_dev", 
+      "type": "task",
+      "title": "前端开发集成",
+      "owner": "frontend",
+      "deliverables": ["前端页面", "接口集成", "功能测试"],
+      "completion_trigger": {
+        "action": "notify_next",
+        "target": "devops",
+        "message_template": "✅ 前后端开发完成，可以部署了！\n\n📦 交付内容：\n- 后端：{backend_deliverables}\n- 前端：{frontend_deliverables}\n\n🚀 请开始部署流程！",
+        "auto_send": true
+      }
+    },
+    "deployment": {
+      "id": "deployment",
+      "type": "task", 
+      "title": "运维部署",
+      "owner": "devops",
+      "deliverables": ["部署完成", "环境验证", "监控配置"],
+      "completion_trigger": {
+        "action": "broadcast_all",
+        "message_template": "🎉 部署完成！\n\n🌐 访问地址：{deploy_url}\n📊 监控地址：{monitor_url}\n\n功能已上线，大家辛苦了！",
+        "auto_send": true
+      }
+    },
+    "end": {
+      "id": "end",
+      "type": "end",
+      "title": "需求完成"
+    }
+  },
+  "edges": [
+    {"from": "start", "to": "backend_dev"},
+    {"from": "backend_dev", "to": "frontend_review"},
+    {"from": "frontend_review", "to": "frontend_dev", "condition": "accept"},
+    {"from": "frontend_review", "to": "backend_feedback", "condition": "reject"},
+    {"from": "backend_feedback", "to": "frontend_review"},
+    {"from": "frontend_dev", "to": "deployment"},
+    {"from": "deployment", "to": "end"}
+  ],
+  "auto_triggers": {
+    "task_complete": {
+      "enabled": true,
+      "command_template": "qq send {target_instance} \"{message}\""
+    },
+    "instance_matching": {
+      "backend": "qq list | grep backend | head -1",
+      "frontend": "qq list | grep frontend | head -1", 
+      "devops": "qq list | grep devops | head -1"
+    }
+  }
+}
