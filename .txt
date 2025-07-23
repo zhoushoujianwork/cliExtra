@@ -1,0 +1,117 @@
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           cliExtra System Overview                          │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│   User Commands │    │  Global Config  │    │  Amazon Q CLI   │
+│                 │    │                 │    │                 │
+│ qq start        │───▶│ ~/Library/App   │───▶│ q login         │
+│ qq list         │    │ Support/cliExtra│    │ q chat          │
+│ qq attach       │    │ /config/        │    │                 │
+│ qq send         │    └─────────────────┘    └─────────────────┘
+│ qq broadcast    │
+└─────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Namespace Management                              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│   default   │  │  frontend   │  │   backend   │  │   devops    │
+│ namespace   │  │ namespace   │  │ namespace   │  │ namespace   │
+│             │  │             │  │             │  │             │
+│ ┌─────────┐ │  │ ┌─────────┐ │  │ ┌─────────┐ │  │ ┌─────────┐ │
+│ │Instance1│ │  │ │Frontend1│ │  │ │Backend1 │ │  │ │DevOps1  │ │
+│ │Instance2│ │  │ │Frontend2│ │  │ │Backend2 │ │  │ │DevOps2  │ │
+│ └─────────┘ │  │ └─────────┘ │  │ └─────────┘ │  │ └─────────┘ │
+└─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Instance Structure                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│ Instance: cliExtra_project_1234567890_1234                                 │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │
+│ │   tmux.log      │  │      info       │  │  project_path   │              │
+│ │ (Session Log)   │  │ (Instance Info) │  │ (Project Ref)   │              │
+│ └─────────────────┘  └─────────────────┘  └─────────────────┘              │
+│ ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐              │
+│ │   instance.log  │  │ conversations/  │  │   namespace     │              │
+│ │ (Output Log)    │  │ instance.json   │  │ (Namespace Info)│              │
+│ └─────────────────┘  └─────────────────┘  └─────────────────┘              │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Role Management                                   │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────┐  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
+│  Frontend   │  │   Backend   │  │    Test     │  │    DevOps   │
+│ Engineer    │  │  Engineer   │  │  Engineer   │  │  Engineer   │
+│             │  │             │  │             │  │             │
+│ • Vue/React │  │ • API Dev   │  │ • Testing   │  │ • Deployment│
+│ • UI/UX     │  │ • Database  │  │ • QA        │  │ • Monitoring│
+│ • Components│  │ • Services  │  │ • Automation│  │ • CI/CD     │
+└─────────────┘  └─────────────┘  └─────────────┘  └─────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Collaboration Flow                                │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│  Backend    │───▶│   Message   │───▶│  Frontend   │
+│ Instance    │    │   System    │    │  Instance   │
+│             │    │             │    │             │
+│ "API Done"  │    │ • send      │    │ "Integrate" │
+│             │    │ • broadcast │    │             │
+└─────────────┘    └─────────────┘    └─────────────┘
+       │                   │                   │
+       └───────────────────┼───────────────────┘
+                           │
+                    ┌─────────────┐
+                    │   DevOps    │
+                    │  Instance   │
+                    │             │
+                    │ "Deploy"    │
+                    └─────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Project Integration                               │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
+│  Project A      │    │  Project B      │    │  Project C      │
+│                 │    │                 │    │                 │
+│ /path/to/projA/ │    │ /path/to/projB/ │    │ /path/to/projC/ │
+│ ├── .amazonq/   │    │ ├── .amazonq/   │    │ ├── .amazonq/   │
+│ │   └── rules/  │    │ │   └── rules/  │    │ │   └── rules/  │
+│ └── src/        │    │ └── src/        │    │ └── src/        │
+└─────────────────┘    └─────────────────┘    └─────────────────┘
+         │                       │                       │
+         └───────────────────────┼───────────────────────┘
+                                 │
+                    ┌─────────────────┐
+                    │  Shared         │
+                    │  Namespace      │
+                    │                 │
+                    │ • frontend      │
+                    │ • backend       │
+                    │ • devops        │
+                    └─────────────────┘
+
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                           Key Features                                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+
+• Auto Instance ID Generation: cliExtra_project_timestamp_random
+• Unified Workspace Management: All instances in system workspace
+• Session Persistence: tmux-based session management
+• Real-time Monitoring: Live instance output and logs
+• Cross-project Collaboration: Instances from different projects in same namespace
+• Role-based AI: Specialized AI assistants for different engineering roles
+• Message Broadcasting: Instance-to-instance communication
+• Context Preservation: Historical conversation and context loading
+• Tool Integration: Git, DingTalk, and custom tools
+• Global Availability: System-wide command access
