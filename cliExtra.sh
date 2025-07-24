@@ -14,7 +14,8 @@ show_help() {
     echo "用法:"
     echo "  $0 config                    - 配置全局设置"
     echo "  $0 start [path] [--name <name>] - 启动实例"
-  $0 resume <instance_id>      - 恢复已停止的实例，载入历史上下文    echo "  $0 send <instance_id> <msg>  - 发送消息到指定实例"
+    echo "  $0 resume <instance_id>      - 恢复已停止的实例，载入历史上下文"
+    echo "  $0 send <instance_id> <msg>  - 发送消息到指定实例"
     echo "  $0 attach <instance_id>      - 接管指定实例终端"
     echo "  $0 replay <type> <target>    - 回放对话记录"
     echo "  $0 stop <instance_id|all>    - 停止指定实例或所有实例"
@@ -28,8 +29,7 @@ show_help() {
     echo "  $0 role <command>            - 角色预设管理"
     echo "  $0 ns <command>              - namespace管理"
     echo "  $0 set-ns <id> <namespace>   - 修改实例的namespace"
-    echo "  $0 workflow <command>        - workflow管理"
-    echo "  $0 workflow-engine <command> - workflow执行引擎"
+
     echo "  $0 broadcast <message>       - 广播消息到实例"
     echo "  $0 tools <command>           - 工具管理"
     echo "  $0 replay <command>          - 对话回放"
@@ -65,9 +65,7 @@ show_help() {
     echo "  $0 ns show                   # 显示所有namespace"
     echo "  $0 set-ns myinstance backend # 将实例移动到backend namespace"
     echo "  $0 broadcast \"系统维护通知\"   # 广播消息到所有实例"
-    echo "  $0 workflow show             # 显示当前workflow配置"
-    echo "  $0 workflow-engine status    # 查看workflow执行状态"
-    echo "  $0 workflow-engine complete backend_dev simple_dev \"API接口,文档\"  # 完成任务并自动通知"
+
     echo "  $0 tools add git             # 添加git工具到当前项目"
     echo "  $0 replay instance backend-api  # 回放backend-api实例的对话"
     echo ""
@@ -146,12 +144,7 @@ case "${1:-}" in
     "set-ns")
         "$SCRIPT_DIR/bin/cliExtra-set-ns.sh" "${@:2}"
         ;;
-    "workflow")
-        "$SCRIPT_DIR/bin/cliExtra-workflow-adapter.sh" "${@:2}"
-        ;;
-    "workflow-engine")
-        "$SCRIPT_DIR/bin/cliExtra-workflow-engine.sh" "${@:2}"
-        ;;
+
     "broadcast")
         "$SCRIPT_DIR/bin/cliExtra-broadcast.sh" "${@:2}"
         ;;
