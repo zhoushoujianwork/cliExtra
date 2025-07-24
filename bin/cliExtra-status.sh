@@ -50,8 +50,7 @@ get_all_status_files() {
         fi
     elif [[ "$show_all_namespaces" == "true" ]]; then
         # 所有namespace
-        local cliextra_home=$(get_cliextra_home)
-        for ns_dir in "$cliextra_home/$CLIEXTRA_NAMESPACES_SUBDIR"/*; do
+        for ns_dir in "$CLIEXTRA_NAMESPACES_DIR"/*; do
             if [[ -d "$ns_dir/$CLIEXTRA_STATUS_SUBDIR" ]]; then
                 for status_file in "$ns_dir/$CLIEXTRA_STATUS_SUBDIR"/*.status; do
                     if [[ -f "$status_file" ]]; then
