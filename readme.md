@@ -2,7 +2,7 @@
 
 基于tmux的Amazon Q CLI实例管理系统
 
-一个基于 shell 快速实现的 AWS AI 终端 Q 的多终端交互工具。目标在帮助开发者降低协作多终端的沟通成本。
+cliExtra 是一个基于 shell 快速实现的 AWS AI 终端 Q 的多终端交互工具，旨在帮助开发者降低协作多终端的沟通成本。它提供了完整的实例生命周期管理、角色预设、工具集成和协作通信功能。
 
 > **前置要求**: 使用本工具前，请先安装并初始化 Amazon Q CLI。支持免费版本和 Pro 版本。
 > 
@@ -22,7 +22,7 @@
 - **🔄 Namespace 管理** - 图形化的 namespace 切换和管理
 - **📈 统计数据展示** - 实例数量统计和分布可视化
 - **🛠️ 工具集成** - Web 端的工具管理和配置
-- **📋 Workflow 可视化** - 协作流程和角色关系图形化展示
+
 - **🎯 角色管理** - 可视化的角色预设管理和应用
 - **📱 响应式设计** - 支持桌面和移动设备访问
 
@@ -43,7 +43,7 @@
 - **单个实例清理**: 支持停止和清理单个实例
 - **Namespace管理**: 支持类似k8s namespace的概念，实例归属管理
 - **角色预设管理**: 支持前端、后端、测试、代码审查、运维等角色预设
-- **Workflow 智能协作**: 支持 namespace 级别的协作流程配置，AI 自动遵循工作流程
+
 - **跨项目协作**: 不同项目的实例可以在同一namespace中协作
 - **Web 图形化管理**: 提供完整的 Web 界面进行可视化管理和实时交互
 - **全局可用**: 安装后可在系统任何位置使用
@@ -98,10 +98,32 @@ chmod +x /usr/local/bin/qq
 访问 [cliExtraWeb 项目](https://github.com/zhoushoujianwork/cliExtraWeb) 获取完整的图形化管理界面，支持：
 - 可视化实例管理和监控
 - 实时聊天交互界面
-- Namespace 和 Workflow 管理
+- Namespace 管理
 - 角色预设和工具配置
 
 ### 📟 命令行管理
+
+### 项目初始化
+
+```bash
+# 分析当前目录项目并生成项目描述
+qq init ./
+
+# 分析当前目录项目并指定项目名
+qq init ./ myproject
+
+# 分析指定目录项目
+qq init /path/to/project
+
+# 分析远程项目（先克隆再分析）
+qq init https://github.com/user/repo.git
+```
+
+**功能特点**:
+- 🔍 **智能分析**: 自动分析项目结构、技术栈、架构模式
+- 📝 **生成文档**: 创建详细的 `.amazonq/rules/project.md` 项目描述文件
+- 🎯 **角色建议**: 基于项目特点推荐合适的开发人员(agent)配置
+- 🚀 **快速上手**: 提供启动命令示例和开发建议
 
 ### 启动实例
 
@@ -168,6 +190,8 @@ qq clean all --namespace frontend
 qq clean all --dry-run
 qq clean all --namespace backend --dry-run
 ```
+
+
 
 ### 配置管理
 

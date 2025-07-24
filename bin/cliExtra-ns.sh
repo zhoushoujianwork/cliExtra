@@ -12,7 +12,8 @@ show_help() {
     echo ""
     echo "命令:"
     echo "  show [namespace]     显示所有namespace或指定namespace的详情"
-    echo "  create <namespace>   创建新的namespace"
+    echo "                       (会自动检查并修复缺失的system实例)"
+    echo "  create <namespace>   创建新的namespace (自动创建system实例)"
     echo "  delete <namespace>   删除namespace (需要--force如果有实例)"
     echo "  list                 列出所有namespace"
     echo ""
@@ -20,12 +21,85 @@ show_help() {
     echo "  --force             强制删除namespace（即使有实例）"
     echo "  -o, --output <format>  输出格式：table（默认）或 json"
     echo ""
+    echo "System实例说明:"
+    echo "  每个namespace都有一个标配的system实例 ({namespace}-system)"
+    echo "  - 角色: system-coordinator"
+    echo "  - 工作目录: namespace系统目录"
+    echo "  - 用途: 协调实例、执行系统任务、项目初始化"
+    echo ""
     echo "示例:"
     echo "  cliExtra ns show                    # 显示所有namespace"
-    echo "  cliExtra ns show frontend           # 显示frontend namespace详情"
-    echo "  cliExtra ns create frontend         # 创建frontend namespace"
+    echo "  cliExtra ns show frontend           # 显示frontend namespace详情并检查system实例"
+    echo "  cliExtra ns create frontend         # 创建frontend namespace和system实例"
     echo "  cliExtra ns delete frontend         # 删除frontend namespace"
     echo "  cliExtra ns delete frontend --force # 强制删除frontend namespace"
+}
+
+# 创建namespace的system实例
+create_system_instance() {
+    local ns_name="$1"
+    local system_instance_name="${ns_name}-system"
+    local ns_dir="$(get_namespace_dir "$ns_name")"
+    
+    echo "正在创建 system 实例: $system_instance_name"
+    
+    # 使用 cliExtra-start.sh 创建 system 实例
+    local start_script="$SCRIPT_DIR/cliExtra-start.sh"
+    
+    # 调用启动脚本创建 system 实例
+    # 工作目录设置为 namespace 目录，角色为 system-coordinator
+    if "$start_script" "$ns_dir" --name "$system_instance_name" --role system-coordinator --namespace "$ns_name" >/dev/null 2>&1; then
+        echo "✓ system 实例创建成功: $system_instance_name"
+        echo "  - 工作目录: $ns_dir"
+        echo "  - 角色: system-coordinator"
+        echo "  - 用途: namespace 协调和系统任务执行"
+        return 0
+    else
+        echo "⚠ system 实例创建失败: $system_instance_name"
+        echo "  可以稍后使用 'qq ns $ns_name' 命令修复"
+        return 1
+    fi
+}
+
+# 检查并修复namespace的system实例
+check_and_repair_system_instance() {
+    local ns_name="$1"
+    local system_instance_name="${ns_name}-system"
+    
+    # 检查 system 实例是否存在
+    local instance_dir=$(find_instance_info_dir "$system_instance_name")
+    
+    if [ -z "$instance_dir" ]; then
+        echo "检测到 namespace '$ns_name' 缺少 system 实例，正在修复..."
+        create_system_instance "$ns_name"
+        return $?
+    fi
+    
+    # 检查实例是否在正确的 namespace 中
+    local instance_ns=$(find_instance_namespace "$system_instance_name")
+    if [ "$instance_ns" != "$ns_name" ]; then
+        echo "检测到 system 实例 namespace 不匹配，正在修复..."
+        # 清理错误的实例
+        "$SCRIPT_DIR/cliExtra-clean.sh" "$system_instance_name" >/dev/null 2>&1
+        # 重新创建
+        create_system_instance "$ns_name"
+        return $?
+    fi
+    
+    # 检查实例是否正常运行
+    local session_name="q_instance_$system_instance_name"
+    if ! tmux has-session -t "$session_name" 2>/dev/null; then
+        echo "检测到 system 实例未运行，正在启动..."
+        "$SCRIPT_DIR/cliExtra-start.sh" resume "$system_instance_name" >/dev/null 2>&1
+        if [ $? -eq 0 ]; then
+            echo "✓ system 实例已启动: $system_instance_name"
+        else
+            echo "⚠ system 实例启动失败，可能需要重新创建"
+            return 1
+        fi
+    fi
+    
+    return 0
 }
 
 # 创建namespace
@@ -110,13 +184,22 @@ EOF
     fi
     
     echo ""
-    echo "✓ namespace '$ns_name' 创建成功"
+    echo "✓ namespace '$ns_name' 基础结构创建成功"
+    echo ""
+    
+    # 创建 system 实例
+    echo "正在创建 namespace 标配 system 实例..."
+    create_system_instance "$ns_name"
+    
+    echo ""
+    echo "✓ namespace '$ns_name' 创建完成"
     echo ""
     echo "创建摘要:"
     echo "  - Namespace: $ns_name"
     echo "  - 目录位置: $ns_dir"
     echo "  - 配置文件: $ns_file"
     echo "  - 子目录: instances, logs, conversations"
+    echo "  - System 实例: ${ns_name}-system"
 }
 
 # 删除namespace
@@ -434,6 +517,16 @@ show_namespace_details() {
     if [[ "$ns_name" != "default" && ! -f "$ns_file" ]]; then
         echo "错误: namespace '$ns_name' 不存在"
         return 1
+    fi
+    
+    # 检查并修复 system 实例（仅在非 JSON 输出模式下显示修复信息）
+    if [[ "$json_output" != "--json" ]]; then
+        echo "检查 namespace '$ns_name' 的 system 实例状态..."
+        check_and_repair_system_instance "$ns_name"
+        echo ""
+    else
+        # JSON 模式下静默修复
+        check_and_repair_system_instance "$ns_name" >/dev/null 2>&1
     fi
     
     local instances_in_ns=$(get_instances_in_namespace "$ns_name")

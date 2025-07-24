@@ -39,6 +39,7 @@ show_help() {
     echo "启动示例:"
     echo "  $0 init ./                   # 分析当前目录项目并生成项目描述"
     echo "  $0 init ./ myproject         # 分析当前目录项目并指定项目名"
+    echo "  $0 init ./ myproject --force # 强制覆盖现有项目描述文件"
     echo "  $0 start                     # 在当前目录启动，自动生成实例ID (如: cliExtra_myproject_1234567890_1234)"
     echo "  $0 start ../                 # 在上级目录启动，自动生成实例ID (如: cliExtra_parentdir_1234567890_5678)"
     echo "  $0 start /path/to/project    # 在指定目录启动，自动生成实例ID (如: cliExtra_project_1234567890_9012)"

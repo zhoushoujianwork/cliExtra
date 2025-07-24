@@ -25,7 +25,7 @@ show_help() {
     echo "功能:"
     echo "  - 启动临时分析实例"
     echo "  - 自动分析项目结构、技术栈、架构"
-    echo "  - 生成 .amazonq/rules/project.md 项目描述文件"
+    echo "  - 生成或更新项目根目录的 README.md 文件"
     echo "  - 建议合适的开发人员(agent)配置"
     echo ""
     echo "示例:"
@@ -45,11 +45,11 @@ generate_analysis_prompt() {
     local project_name="$2"
     
     cat << EOF
-请分析这个项目并生成详细的项目描述文件。
+请分析这个项目并生成详细的 README.md 文件。
 
 ## 分析要求
 
-请基于项目目录结构和文件内容，生成一个完整的项目分析报告，保存为 \`.amazonq/rules/project.md\` 文件。
+请基于项目目录结构和文件内容，生成一个完整的项目 README.md 文件，保存为项目根目录的 \`README.md\` 文件。
 
 ## 分析内容
 
@@ -94,72 +94,114 @@ generate_analysis_prompt() {
 
 ## 输出格式
 
-请直接创建 \`.amazonq/rules/project.md\` 文件，内容格式如下：
+请直接创建或更新项目根目录的 \`README.md\` 文件，内容格式如下：
 
 \`\`\`markdown
-# $project_name 项目分析
+# $project_name
 
-## 项目概述
-[项目基本信息和描述]
+## 项目简介
+[项目基本信息和主要功能描述]
+
+## 功能特点
+- [核心功能列表]
+- [主要特性]
 
 ## 技术栈
+
 ### 开发语言
-- [语言列表]
+- [主要编程语言和版本]
 
 ### 框架和库
-- [框架库列表]
+- [使用的框架和库]
 
 ### 构建工具
-- [构建工具列表]
+- [构建系统和包管理器]
 
 ## 项目架构
+
 ### 架构模式
-[架构描述]
+[架构设计说明]
 
 ### 目录结构
-[目录结构分析]
+\\\`\\\`\\\`
+[项目目录结构展示]
+\\\`\\\`\\\`
 
 ### 核心模块
-[模块分析]
+[主要模块和功能说明]
 
-## 开发环境
+## 安装和使用
+
 ### 环境要求
-[环境配置要求]
+- [运行环境要求]
+- [依赖软件版本]
 
-### 开发工具
-[推荐的开发工具]
+### 安装步骤
+\\\`\\\`\\\`bash
+# 安装命令示例
+[具体安装步骤]
+\\\`\\\`\\\`
+
+### 使用方法
+\\\`\\\`\\\`bash
+# 基本使用示例
+[使用命令和示例]
+\\\`\\\`\\\`
+
+## 开发指南
+
+### 开发环境搭建
+[开发环境配置说明]
+
+### 推荐开发工具
+[建议使用的开发工具和IDE]
+
+### 代码规范
+[代码风格和规范要求]
 
 ## 建议的开发人员配置
 
+基于项目特点，推荐以下 cliExtra 角色配置：
+
 ### 推荐角色
-- **主要角色**: [角色名] - [角色职责]
-- **辅助角色**: [角色名] - [角色职责]
+- **主要角色**: [角色名] - [角色职责和适用场景]
+- **辅助角色**: [角色名] - [角色职责和适用场景]
 
-### 协作建议
-[协作方式建议]
-
-### 启动命令示例
+### 启动命令
 \\\`\\\`\\\`bash
 # 启动推荐的开发实例
-qq start --role [推荐角色] --name [项目名]-[角色]
+qq start --role [推荐角色] --name $project_name-dev
+
+# 如果需要多角色协作
+qq start --role [角色1] --name $project_name-[角色1]
+qq start --role [角色2] --name $project_name-[角色2]
 \\\`\\\`\\\`
 
 ## 项目特点
-[项目的特殊性和注意事项]
+[项目的独特性和技术亮点]
+
+## 贡献指南
+[如何参与项目开发]
+
+## 许可证
+[项目许可证信息]
+
+## 更新日志
+[版本更新记录]
 \`\`\`
 
 ## 执行步骤
 
 1. 首先分析项目目录结构
 2. 检查配置文件（package.json, requirements.txt, pom.xml等）
-3. 分析源代码文件
-4. 创建 .amazonq/rules/ 目录（如果不存在）
-5. 生成并保存 project.md 文件
+3. 分析源代码文件和现有文档
+4. 如果存在现有的 README.md，先阅读其内容作为参考
+5. 生成或更新项目根目录的 README.md 文件
 6. 输出分析完成的确认信息
 
 **重要**: 完成分析后，请输出明确的完成信号：
 - 输出 "✅ 项目分析完成！"
-- 输出 "📄 project.md 文件已创建并保存"
+- 输出 "📄 README.md 文件已创建并保存"
 - 显示文件的保存路径
 
 请开始分析项目：$project_path
@@ -230,7 +272,7 @@ monitor_analysis_progress() {
     local verbose_mode="$3"
     local quiet_mode="$4"
     local session_name="q_instance_$instance_id"
-    local project_md_file="$project_path/.amazonq/rules/project.md"
+    local project_md_file="$project_path/README.md"
     local max_wait=300  # 最多等待5分钟
     local count=0
     local last_output=""
@@ -450,8 +492,8 @@ main() {
         echo ""
     fi
     
-    # 检查是否已存在project.md文件
-    local project_md_file="$project_path/.amazonq/rules/project.md"
+    # 检查是否已存在README.md文件
+    local project_md_file="$project_path/README.md"
     if [ -f "$project_md_file" ]; then
         if [ "$force_mode" = true ]; then
             if [ "$quiet_mode" = false ]; then

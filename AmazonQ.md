@@ -95,3 +95,91 @@ project/.cliExtra/roles/frontend-engineer.md
 - ✅ AI 按角色定义行为
 - ✅ 实例正常运行
 - ✅ 消息发送功能正常
+
+## 2025-07-24 tmux会话启动方式优化
+
+### 问题发现
+- 实例启动后没有进入 Q chat 对话页面
+- 停留在 shell 提示符状态，`q chat` 命令执行后立即退出
+- 原因：先创建空会话再发送命令的方式不稳定
+
+### 解决方案
+- **直接启动方式**: 在创建 tmux 会话时直接启动 `q chat --trust-all-tools`
+- **简化流程**: 移除中间的命令发送步骤，确保 Q chat 持续运行
+- **优化时序**: 调整等待时间和角色加载时机
+
+### 技术实现
+1. **启动方式改进**:
+   ```bash
+   # 之前：先创建会话再发送命令
+   tmux new-session -d -s "$session_name" -c "$project_dir"
+   tmux send-keys -t "$session_name" "q chat --trust-all-tools" Enter
+   
+   # 现在：直接启动 Q chat
+   tmux new-session -d -s "$session_name" -c "$project_dir" "q chat --trust-all-tools"
+   ```
+
+2. **角色加载优化**:
+   - Q chat 启动后等待3秒确保完全初始化
+   - 通过 `tmux send-keys` 发送角色定义消息
+   - 提供清晰的状态反馈
+
+### 测试验证
+- ✅ 实例正确进入 Q chat 对话模式
+- ✅ 角色定义成功加载并生效
+- ✅ AI 按角色进行自我介绍
+- ✅ 消息发送和接收功能正常
+- ✅ tmux 会话稳定运行
+
+### 用户体验改进
+- 启动后直接进入可用状态
+- 角色定义自动加载并确认
+- 清晰的状态提示和反馈
+- 稳定的会话持久化
+
+## 2025-07-24 Namespace System 实例功能
+
+### 设计理念
+为每个 namespace 配备一个标配的 system 级别协调实例，作为该 namespace 的协调中心和系统任务执行者。
+
+### 功能特点
+1. **自动创建**: `qq ns create xxx` 时自动创建 `{namespace}-system` 实例
+2. **自动修复**: `qq ns show xxx` 时检查并修复缺失的 system 实例
+3. **系统级权限**: 可以协调该 namespace 下的其他实例，执行系统级任务
+4. **专用角色**: 使用 `system-coordinator` 角色，专门负责系统协调
+
+### 技术实现
+1. **System 实例规范**:
+   - 实例名称: `{namespace}-system`
+   - 工作目录: 系统目录下的 namespace 目录
+   - 角色: `system-coordinator`
+   - 用途: namespace 协调中心和系统任务执行
+
+2. **创建和修复机制**:
+   - `create_system_instance()`: 创建 system 实例
+   - `check_and_repair_system_instance()`: 检查和修复 system 实例
+   - 集成到 namespace 创建和显示流程中
+
+3. **System Coordinator 角色**:
+   - 专门的角色定义文件 `system-coordinator.md`
+   - 具备项目初始化、实例协调、系统任务执行能力
+   - 可以替代临时 agent，执行 `qq init` 等系统任务
+
+### 使用场景
+1. **项目初始化**: 通过 system 实例执行项目分析和初始化
+2. **实例协调**: 协调 namespace 内其他实例的工作
+3. **系统任务**: 执行跨实例的系统级任务
+4. **状态监控**: 监控 namespace 内实例状态和健康度
+
+### 测试验证
+- ✅ namespace 创建时自动创建 system 实例
+- ✅ system 实例使用正确的角色和工作目录
+- ✅ 检查和修复功能正常工作
+- ✅ system 实例可以正常接收和处理消息
+- ✅ 删除 namespace 时正确清理 system 实例
+
+### 用户价值
+- **简化操作**: 不再需要手动创建临时 agent
+- **统一管理**: 每个 namespace 都有标准的协调实例
+- **自动修复**: 系统自动检查和修复缺失的 system 实例
+- **角色专业**: 专门的 system-coordinator 角色提供更好的系统服务

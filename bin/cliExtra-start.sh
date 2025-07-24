@@ -561,28 +561,13 @@ EOF
         echo "角色定义: $role_file"
     fi
     
-    # 构建 q chat 命令
-    local q_command="q chat --trust-all-tools"
-    
-    # 如果有角色文件，我们需要通过其他方式传入角色信息
-    # 由于 Q CLI 不直接支持 --context 参数，我们将在启动后发送角色信息
-    if [ -n "$role_file" ] && [ -f "$role_file" ]; then
-        echo "准备加载角色定义: $(basename "$role_file")"
-    fi
-    
-    # 启动tmux会话，在项目目录中运行
-    tmux new-session -d -s "$session_name" -c "$project_dir"
+    # 启动tmux会话，在项目目录中运行，直接启动 q chat
+    tmux new-session -d -s "$session_name" -c "$project_dir" "q chat --trust-all-tools"
     
     # 启用tmux日志记录
     tmux pipe-pane -t "$session_name" -o "cat >> '$tmux_log_file'"
     
-    # 等待一下确保会话启动
-    sleep 2
-    
-    # 发送 q chat 命令
-    tmux send-keys -t "$session_name" "$q_command" Enter
-    
-    # 等待 Q 启动
+    # 等待 Q 启动完成
     sleep 3
     
     # 如果有角色文件，发送角色定义作为初始消息
