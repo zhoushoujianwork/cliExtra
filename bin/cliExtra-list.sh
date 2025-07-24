@@ -8,7 +8,7 @@ source "$SCRIPT_DIR/cliExtra-common.sh"
 
 # 显示帮助
 show_help() {
-    echo "用法: cliExtra list [instance_id] [-o json] [-n namespace] [--names-only]"
+    echo "用法: cliExtra list [instance_id] [options]"
     echo ""
     echo "参数:"
     echo "  instance_id   显示指定实例的详细信息"
@@ -17,6 +17,12 @@ show_help() {
     echo "  -o, --output <format>     输出格式：table（默认）或 json"
     echo "  -n, --namespace <name>    只显示指定 namespace 中的实例"
     echo "  --names-only              只输出实例名称（便于脚本解析）"
+    echo "  -A, --all                 显示所有 namespace 中的实例"
+    echo ""
+    echo "默认行为:"
+    echo "  默认只显示 'default' namespace 中的实例"
+    echo "  使用 -A/--all 显示所有 namespace 的实例"
+    echo "  使用 -n/--namespace 显示指定 namespace 的实例"
     echo ""
     echo "输出格式:"
     echo "  默认: 表格格式显示实例信息（包含 namespace、状态等）"
@@ -25,9 +31,14 @@ show_help() {
     echo "  -o json: 结构化的JSON格式输出"
     echo ""
     echo "示例:"
-    echo "  cliExtra list                         # 表格格式列出所有实例"
-    echo "  cliExtra list --names-only            # 只列出实例名称"
-    echo "  cliExtra list -o json                 # JSON格式列出所有实例"
+    echo "  cliExtra list                         # 只显示 default namespace 的实例"
+    echo "  cliExtra list -A                      # 显示所有 namespace 的实例"
+    echo "  cliExtra list --all                   # 显示所有 namespace 的实例"
+    echo "  cliExtra list -n frontend             # 只显示 frontend namespace 的实例"
+    echo "  cliExtra list --names-only            # 只列出 default namespace 的实例名称"
+    echo "  cliExtra list -A --names-only         # 列出所有 namespace 的实例名称"
+    echo "  cliExtra list -o json                 # JSON格式显示 default namespace 的实例"
+    echo "  cliExtra list -A -o json              # JSON格式显示所有 namespace 的实例"
     echo "  cliExtra list -n frontend             # 列出frontend namespace中的实例"
     echo "  cliExtra list -n backend -o json      # JSON格式列出backend namespace中的实例"
     echo "  cliExtra list myinstance              # 显示实例myinstance的详细信息"
@@ -39,6 +50,7 @@ JSON_OUTPUT=false
 TARGET_INSTANCE=""
 FILTER_NAMESPACE=""
 NAMES_ONLY=false
+SHOW_ALL_NAMESPACES=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -67,6 +79,10 @@ while [[ $# -gt 0 ]]; do
             fi
             FILTER_NAMESPACE="$2"
             shift 2
+            ;;
+        -A|--all)
+            SHOW_ALL_NAMESPACES=true
+            shift
             ;;
         --names-only)
             NAMES_ONLY=true
@@ -259,10 +275,19 @@ get_all_instances() {
             if [ -d "$ns_dir/instances" ]; then
                 local namespace=$(basename "$ns_dir")
                 
-                # 如果指定了namespace过滤，跳过不匹配的namespace
-                if [[ -n "$FILTER_NAMESPACE" && "$namespace" != "$FILTER_NAMESPACE" ]]; then
-                    continue
+                # 实现默认行为：只显示 default namespace，除非指定了其他选项
+                if [[ -n "$FILTER_NAMESPACE" ]]; then
+                    # 如果指定了namespace过滤，只显示指定的namespace
+                    if [[ "$namespace" != "$FILTER_NAMESPACE" ]]; then
+                        continue
+                    fi
+                elif [[ "$SHOW_ALL_NAMESPACES" != "true" ]]; then
+                    # 如果没有指定 -A/--all，默认只显示 default namespace
+                    if [[ "$namespace" != "default" ]]; then
+                        continue
+                    fi
                 fi
+                # 如果 SHOW_ALL_NAMESPACES=true，则显示所有namespace
                 
                 for instance_dir in "$ns_dir/instances"/instance_*; do
                     if [ -d "$instance_dir" ]; then
@@ -309,9 +334,17 @@ get_all_instances() {
                 # 获取namespace信息
                 local namespace=$(get_instance_namespace "$instance_id")
                 
-                # 如果指定了namespace过滤，跳过不匹配的namespace
-                if [[ -n "$FILTER_NAMESPACE" && "$namespace" != "$FILTER_NAMESPACE" ]]; then
-                    continue
+                # 应用与新结构相同的过滤逻辑
+                if [[ -n "$FILTER_NAMESPACE" ]]; then
+                    # 如果指定了namespace过滤，只显示指定的namespace
+                    if [[ "$namespace" != "$FILTER_NAMESPACE" ]]; then
+                        continue
+                    fi
+                elif [[ "$SHOW_ALL_NAMESPACES" != "true" ]]; then
+                    # 如果没有指定 -A/--all，默认只显示 default namespace
+                    if [[ "$namespace" != "default" ]]; then
+                        continue
+                    fi
                 fi
                 
                 # 检查会话状态

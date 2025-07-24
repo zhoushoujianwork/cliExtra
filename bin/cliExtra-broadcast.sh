@@ -15,11 +15,19 @@ show_help() {
     echo ""
     echo "选项:"
     echo "  --namespace <ns>    只广播给指定namespace的实例"
+    echo "  -A, --all           广播给所有namespace的实例"
     echo "  --exclude <id>      排除指定的实例ID"
     echo "  --dry-run          只显示会发送给哪些实例，不实际发送"
     echo ""
+    echo "默认行为:"
+    echo "  默认只广播给 'default' namespace 中的实例"
+    echo "  使用 -A/--all 广播给所有 namespace 的实例"
+    echo "  使用 --namespace 广播给指定 namespace 的实例"
+    echo ""
     echo "示例:"
-    echo "  cliExtra broadcast \"系统维护通知\"                    # 广播给所有实例"
+    echo "  cliExtra broadcast \"系统维护通知\"                    # 广播给 default namespace"
+    echo "  cliExtra broadcast \"系统更新\" -A                    # 广播给所有 namespace"
+    echo "  cliExtra broadcast \"系统更新\" --all                 # 广播给所有 namespace"
     echo "  cliExtra broadcast \"前端更新\" --namespace frontend   # 只广播给frontend namespace"
     echo "  cliExtra broadcast \"测试完成\" --exclude self        # 排除当前实例"
     echo "  cliExtra broadcast \"部署通知\" --dry-run             # 预览模式"
@@ -252,11 +260,17 @@ broadcast_message() {
     # 获取目标实例列表
     local target_instances=""
     if [[ -n "$target_namespace" ]]; then
+        # 如果指定了具体的 namespace
         target_instances=$(get_namespace_instances "$target_namespace")
         echo "广播目标: namespace '$target_namespace'"
-    else
+    elif [[ "$SHOW_ALL_NAMESPACES" == "true" ]]; then
+        # 如果指定了 -A/--all，广播给所有 namespace
         target_instances=$(get_all_instances)
-        echo "广播目标: 所有实例"
+        echo "广播目标: 所有 namespace 的实例"
+    else
+        # 默认只广播给 default namespace
+        target_instances=$(get_namespace_instances "default")
+        echo "广播目标: default namespace"
     fi
     
     # 过滤排除的实例
@@ -354,12 +368,17 @@ MESSAGE=""
 TARGET_NAMESPACE=""
 EXCLUDE_INSTANCE=""
 DRY_RUN=false
+SHOW_ALL_NAMESPACES=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --namespace)
             TARGET_NAMESPACE="$2"
             shift 2
+            ;;
+        -A|--all)
+            SHOW_ALL_NAMESPACES=true
+            shift
             ;;
         --exclude)
             EXCLUDE_INSTANCE="$2"

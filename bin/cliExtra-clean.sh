@@ -16,14 +16,22 @@ show_help() {
     echo ""
     echo "选项:"
     echo "  --namespace <ns>  只清理指定namespace中的实例（仅与all一起使用）"
+    echo "  -A, --all-ns      清理所有namespace中的实例（仅与all一起使用）"
     echo "  --dry-run        预览模式，显示将要清理的实例但不实际执行"
+    echo ""
+    echo "默认行为（仅对 'clean all'）:"
+    echo "  默认只清理 'default' namespace 中的实例"
+    echo "  使用 -A/--all-ns 清理所有 namespace 的实例"
+    echo "  使用 --namespace 清理指定 namespace 的实例"
     echo ""
     echo "示例:"
     echo "  cliExtra clean myproject              # 清理指定实例"
-    echo "  cliExtra clean all                    # 清理所有实例"
+    echo "  cliExtra clean all                    # 清理 default namespace 中的所有实例"
+    echo "  cliExtra clean all -A                 # 清理所有 namespace 中的实例"
+    echo "  cliExtra clean all --all-ns           # 清理所有 namespace 中的实例"
     echo "  cliExtra clean all --namespace frontend  # 清理frontend namespace中的所有实例"
-    echo "  cliExtra clean all --dry-run          # 预览将要清理的所有实例"
-    echo "  cliExtra clean all --namespace backend --dry-run  # 预览backend namespace中的实例"
+    echo "  cliExtra clean all --dry-run          # 预览将要清理的 default namespace 实例"
+    echo "  cliExtra clean all -A --dry-run       # 预览将要清理的所有 namespace 实例"
 }
 
 # 获取实例的namespace
@@ -374,12 +382,17 @@ clean_all_tmux() {
 TARGET=""
 TARGET_NAMESPACE=""
 DRY_RUN=false
+SHOW_ALL_NAMESPACES=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
         --namespace)
             TARGET_NAMESPACE="$2"
             shift 2
+            ;;
+        -A|--all-ns)
+            SHOW_ALL_NAMESPACES=true
+            shift
             ;;
         --dry-run)
             DRY_RUN=true
@@ -418,13 +431,18 @@ if [[ -z "$TARGET" ]]; then
     exit 1
 elif [[ "$TARGET" == "all" ]]; then
     if [[ -n "$TARGET_NAMESPACE" ]]; then
+        # 如果指定了具体的 namespace
         clean_namespace_instances "$TARGET_NAMESPACE" "$DRY_RUN"
-    else
+    elif [[ "$SHOW_ALL_NAMESPACES" == "true" ]]; then
+        # 如果指定了 -A/--all-ns，清理所有 namespace
         clean_all_tmux "$DRY_RUN"
+    else
+        # 默认只清理 default namespace
+        clean_namespace_instances "default" "$DRY_RUN"
     fi
 else
-    if [[ -n "$TARGET_NAMESPACE" ]]; then
-        echo "错误: --namespace 选项只能与 'all' 一起使用"
+    if [[ -n "$TARGET_NAMESPACE" || "$SHOW_ALL_NAMESPACES" == "true" ]]; then
+        echo "错误: --namespace 和 -A/--all-ns 选项只能与 'all' 一起使用"
         show_help
         exit 1
     fi
