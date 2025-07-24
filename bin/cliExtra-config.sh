@@ -183,6 +183,11 @@ get_namespace_dir() {
     echo "$CLIEXTRA_NAMESPACES_DIR/$namespace"
 }
 
+# 获取当前 namespace（从环境变量或默认值）
+get_current_namespace() {
+    echo "${CLIEXTRA_CURRENT_NS:-$CLIEXTRA_DEFAULT_NS}"
+}
+
 # 获取实例目录
 get_instance_dir() {
     local instance_id="$1"

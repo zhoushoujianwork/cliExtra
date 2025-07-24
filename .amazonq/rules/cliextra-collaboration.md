@@ -6,8 +6,29 @@
 
 ### 获取最新 Workflow 配置
 ```bash
+# 显示当前namespace的workflow配置
+qq workflow show
+
 # 显示指定namespace的workflow配置  
 qq workflow show <namespace>
+
+# 查看workflow执行状态
+qq workflow status
+
+# 显示DAG结构和角色分配
+qq workflow dag show
+
+# 查看所有namespace的workflow列表
+qq workflow list
+```
+
+### 获取当前任务状态
+```bash
+# 查看当前工作流状态和角色实例映射
+qq workflow-engine status
+
+# 查看指定namespace的状态
+qq workflow-engine status <namespace>
 ```
 
 ## 🎯 基于 Workflow 的行为指导
@@ -16,13 +37,13 @@ qq workflow show <namespace>
 根据 workflow 配置，你必须：
 
 1. **角色职责遵循**
-   - 严格按照 `qq workflow show <namespace>` 显示的角色定义工作
+   - 严格按照 `qq workflow dag show` 显示的角色定义工作
    - 只使用角色定义中允许的 tools
    - 专注于你的 responsibilities 范围内的工作
 
 2. **任务执行流程**
    - 按照 DAG 中定义的节点顺序执行任务
-   - 完成任务后使用 `workflow-engine complete` 自动触发协作
+   - 完成任务后使用 `qq workflow-engine complete` 自动触发协作
    - 遵循 completion_trigger 中定义的通知规则
 
 3. **协作关系执行**
@@ -31,7 +52,7 @@ qq workflow show <namespace>
    - 支持条件分支和反馈循环
 
 4. **自动化通知执行**
-   - 优先使用 workflow-engine 的自动通知功能
+   - 优先使用 qq workflow-engine 的自动通知功能
    - 必要时使用 qq send 或 qq broadcast 手动通知
    - 遵循 auto_triggers 中定义的规则
 
@@ -46,19 +67,19 @@ qq workflow show
 qq workflow dag show
 
 # 查看当前执行状态
-workflow-engine status
+qq workflow-engine status
 ```
 
 #### 执行任务和协作
 ```bash
 # 完成后端开发任务
-workflow-engine complete backend_dev simple_dev "API接口,接口文档,测试数据"
+qq workflow-engine complete backend_dev simple_dev "API接口,接口文档,测试数据"
 
 # 完成前端开发任务  
-workflow-engine complete frontend_dev simple_dev "前端页面,接口集成,功能测试"
+qq workflow-engine complete frontend_dev simple_dev "前端页面,接口集成,功能测试"
 
 # 完成部署任务
-workflow-engine complete deployment simple_dev "部署完成,环境验证,监控配置"
+qq workflow-engine complete deployment simple_dev "部署完成,环境验证,监控配置"
 ```
 
 #### 处理反馈和调整
@@ -72,7 +93,7 @@ qq send backend-api "接口参数格式需要调整：
 请尽快调整，谢谢！"
 
 # 后端调整完成后
-workflow-engine complete backend_feedback simple_dev "接口格式调整完成"
+qq workflow-engine complete backend_feedback simple_dev "接口格式调整完成"
 ```
 
 ### 协作执行模板
@@ -81,10 +102,10 @@ workflow-engine complete backend_feedback simple_dev "接口格式调整完成"
 当你完成任务时，使用 workflow 引擎自动触发通知：
 ```bash
 # 完成任务并自动通知下一个角色
-workflow-engine complete <task_id> [namespace] [deliverables]
+qq workflow-engine complete <task_id> [namespace] [deliverables]
 
 # 示例：后端完成接口开发
-workflow-engine complete backend_dev simple_dev "API接口,接口文档,测试数据"
+qq workflow-engine complete backend_dev simple_dev "API接口,接口文档,测试数据"
 # 自动执行: qq send frontend-web "🚀 后端接口开发完成！..."
 ```
 
@@ -112,7 +133,7 @@ qq send backend-api "接口需要调整：
 请及时处理，谢谢！"
 
 # 后端调整完成后通知前端
-workflow-engine complete backend_feedback simple_dev "接口调整完成"
+qq workflow-engine complete backend_feedback simple_dev "接口调整完成"
 # 自动执行: qq send frontend-web "🔄 接口已根据反馈调整完成！..."
 ```
 
@@ -126,7 +147,7 @@ workflow-engine complete backend_feedback simple_dev "接口调整完成"
 qq workflow dag show
 
 # 查看当前任务状态和实例映射
-workflow-engine status
+qq workflow-engine status
 ```
 
 #### 2. 确认任务执行条件
@@ -136,7 +157,7 @@ workflow-engine status
 - [ ] 交付物要求是否明确
 
 #### 3. 任务完成后的协作流程
-- [ ] 使用 `workflow-engine complete` 自动触发下一步
+- [ ] 使用 `qq workflow-engine complete` 自动触发下一步
 - [ ] 确认通知消息已发送给正确的角色实例
 - [ ] 检查是否需要等待反馈或审批
 - [ ] 记录任务完成状态和交付物
@@ -164,8 +185,8 @@ qq workflow show
 qq workflow dag show
 
 # 检查当前状态和角色映射
-workflow-engine status
+qq workflow-engine status
 ```
 
-任何偏离 workflow 的行为都可能影响团队协作效率。优先使用 `workflow-engine complete` 进行任务完成和自动通知，必要时使用 `qq send` 进行手动协作。
+任何偏离 workflow 的行为都可能影响团队协作效率。优先使用 `qq workflow-engine complete` 进行任务完成和自动通知，必要时使用 `qq send` 进行手动协作。
 
