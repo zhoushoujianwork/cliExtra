@@ -2,21 +2,116 @@
 
 # cliExtra 消息发送脚本
 
-# 加载公共函数
+# 加载公共函数、配置和状态管理器
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/cliExtra-config.sh"
 source "$SCRIPT_DIR/cliExtra-common.sh"
+source "$SCRIPT_DIR/cliExtra-status-manager.sh"
 
 # 显示帮助
 show_help() {
-    echo "用法: cliExtra send <instance_id> <message>"
+    echo "用法: cliExtra send <instance_id> <message> [options]"
     echo ""
     echo "参数:"
     echo "  instance_id   目标实例ID"
     echo "  message       要发送的消息内容"
     echo ""
+    echo "选项:"
+    echo "  --force       强制发送，忽略实例状态检查"
+    echo "  --wait-idle   等待实例变为空闲状态后发送"
+    echo ""
+    echo "状态检查说明:"
+    echo "  默认只向 idle (空闲) 状态的实例发送消息"
+    echo "  非空闲状态的实例会被跳过，避免打断工作"
+    echo "  使用 --force 可以强制发送到任何状态的实例"
+    echo ""
     echo "示例:"
     echo "  cliExtra send backend-api \"API开发完成，请进行前端集成\""
-    echo "  cliExtra send frontend-dev \"请更新用户界面组件\""
+    echo "  cliExtra send frontend-dev \"请更新用户界面组件\" --force"
+    echo "  cliExtra send backend-api \"重要通知\" --wait-idle"
+}
+
+# 检查实例状态是否可以接收消息
+check_instance_status() {
+    local instance_id="$1"
+    local force_send="${2:-false}"
+    
+    # 获取实例的namespace
+    local namespace=$(get_instance_namespace "$instance_id")
+    if [[ -z "$namespace" ]]; then
+        namespace="$CLIEXTRA_DEFAULT_NS"
+    fi
+    
+    # 获取状态文件路径
+    local status_file=$(get_instance_status_file "$instance_id" "$namespace")
+    
+    # 如果状态文件不存在，假设实例是空闲的
+    if [[ ! -f "$status_file" ]]; then
+        return 0  # 可以发送
+    fi
+    
+    # 读取状态
+    if command -v jq >/dev/null 2>&1; then
+        local status=$(jq -r '.status // "idle"' "$status_file" 2>/dev/null)
+        local task=$(jq -r '.task // ""' "$status_file" 2>/dev/null)
+        
+        # 如果是强制发送，直接返回成功
+        if [[ "$force_send" == "true" ]]; then
+            return 0
+        fi
+        
+        # 检查状态
+        if [[ "$status" == "idle" ]]; then
+            return 0  # 可以发送
+        else
+            # 显示状态信息
+            local status_desc=""
+            case "$status" in
+                "busy") status_desc="忙碌" ;;
+                "waiting") status_desc="等待中" ;;
+                "error") status_desc="错误状态" ;;
+                *) status_desc="$status" ;;
+            esac
+            
+            echo "实例 $instance_id 当前状态为 $status_desc，无法发送消息"
+            if [[ -n "$task" && "$task" != "null" ]]; then
+                echo "当前任务: $task"
+            fi
+            echo "提示: 使用 --force 参数可以强制发送"
+            return 1  # 不能发送
+        fi
+    else
+        # 没有jq，假设可以发送
+        return 0
+    fi
+}
+
+# 等待实例变为空闲状态
+wait_for_idle() {
+    local instance_id="$1"
+    local max_wait="${2:-300}"  # 默认最多等待5分钟
+    local check_interval=5      # 每5秒检查一次
+    local waited=0
+    
+    echo "等待实例 $instance_id 变为空闲状态..."
+    
+    while [[ $waited -lt $max_wait ]]; do
+        if check_instance_status "$instance_id" "false" >/dev/null 2>&1; then
+            echo "✓ 实例 $instance_id 现在是空闲状态"
+            return 0
+        fi
+        
+        sleep $check_interval
+        waited=$((waited + check_interval))
+        
+        # 显示等待进度
+        if [[ $((waited % 30)) -eq 0 ]]; then
+            echo "已等待 ${waited}s，继续等待实例空闲..."
+        fi
+    done
+    
+    echo "等待超时 (${max_wait}s)，实例 $instance_id 仍未空闲"
+    return 1
 }
 
 # 记录对话到实例对话文件
@@ -192,12 +287,18 @@ get_instance_namespace_from_project() {
 send_message_to_instance() {
     local instance_id="$1"
     local message="$2"
+    local force_send="${3:-false}"
     local session_name="q_instance_$instance_id"
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     
     # 检查实例是否运行
     if ! tmux has-session -t "$session_name" 2>/dev/null; then
         echo "错误: 实例 $instance_id 未运行"
+        return 1
+    fi
+    
+    # 检查实例状态（除非强制发送）
+    if ! check_instance_status "$instance_id" "$force_send"; then
         return 1
     fi
     
@@ -235,10 +336,48 @@ if [[ $# -lt 2 ]]; then
     exit 1
 fi
 
-INSTANCE_ID="$1"
-MESSAGE="$2"
+# 参数解析
+INSTANCE_ID=""
+MESSAGE=""
+FORCE_SEND=false
+WAIT_IDLE=false
 
-# 检查参数
+# 解析命令行参数
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --force)
+            FORCE_SEND=true
+            shift
+            ;;
+        --wait-idle)
+            WAIT_IDLE=true
+            shift
+            ;;
+        --help|-h)
+            show_help
+            exit 0
+            ;;
+        -*)
+            echo "错误: 未知选项 $1"
+            show_help
+            exit 1
+            ;;
+        *)
+            if [[ -z "$INSTANCE_ID" ]]; then
+                INSTANCE_ID="$1"
+            elif [[ -z "$MESSAGE" ]]; then
+                MESSAGE="$1"
+            else
+                echo "错误: 多余的参数 $1"
+                show_help
+                exit 1
+            fi
+            shift
+            ;;
+    esac
+done
+
+# 检查必需参数
 if [[ -z "$INSTANCE_ID" ]]; then
     echo "错误: 请指定实例ID"
     show_help
@@ -251,5 +390,13 @@ if [[ -z "$MESSAGE" ]]; then
     exit 1
 fi
 
+# 如果需要等待空闲状态
+if [[ "$WAIT_IDLE" == "true" ]]; then
+    if ! wait_for_idle "$INSTANCE_ID"; then
+        echo "错误: 实例未变为空闲状态，取消发送"
+        exit 1
+    fi
+fi
+
 # 发送消息
-send_message_to_instance "$INSTANCE_ID" "$MESSAGE"
+send_message_to_instance "$INSTANCE_ID" "$MESSAGE" "$FORCE_SEND"

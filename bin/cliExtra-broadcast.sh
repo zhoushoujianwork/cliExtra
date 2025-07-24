@@ -2,9 +2,11 @@
 
 # cliExtra 广播消息脚本
 
-# 加载公共函数
+# 加载公共函数、配置和状态管理器
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/cliExtra-config.sh"
 source "$SCRIPT_DIR/cliExtra-common.sh"
+source "$SCRIPT_DIR/cliExtra-status-manager.sh"
 
 # 显示帮助
 show_help() {
@@ -17,7 +19,13 @@ show_help() {
     echo "  --namespace <ns>    只广播给指定namespace的实例"
     echo "  -A, --all           广播给所有namespace的实例"
     echo "  --exclude <id>      排除指定的实例ID"
+    echo "  --force             强制发送，忽略实例状态检查"
     echo "  --dry-run          只显示会发送给哪些实例，不实际发送"
+    echo ""
+    echo "状态检查说明:"
+    echo "  默认只向 idle (空闲) 状态的实例广播消息"
+    echo "  非空闲状态的实例会被跳过，避免打断工作"
+    echo "  使用 --force 可以强制广播到所有实例"
     echo ""
     echo "默认行为:"
     echo "  默认只广播给 'default' namespace 中的实例"
@@ -25,12 +33,52 @@ show_help() {
     echo "  使用 --namespace 广播给指定 namespace 的实例"
     echo ""
     echo "示例:"
-    echo "  cliExtra broadcast \"系统维护通知\"                    # 广播给 default namespace"
-    echo "  cliExtra broadcast \"系统更新\" -A                    # 广播给所有 namespace"
-    echo "  cliExtra broadcast \"系统更新\" --all                 # 广播给所有 namespace"
+    echo "  cliExtra broadcast \"系统维护通知\"                    # 广播给 default namespace 的空闲实例"
+    echo "  cliExtra broadcast \"系统更新\" -A                    # 广播给所有 namespace 的空闲实例"
+    echo "  cliExtra broadcast \"紧急通知\" --force               # 强制广播给所有实例"
     echo "  cliExtra broadcast \"前端更新\" --namespace frontend   # 只广播给frontend namespace"
     echo "  cliExtra broadcast \"测试完成\" --exclude self        # 排除当前实例"
     echo "  cliExtra broadcast \"部署通知\" --dry-run             # 预览模式"
+}
+
+# 检查实例状态是否可以接收广播消息
+check_broadcast_instance_status() {
+    local instance_id="$1"
+    local force_send="${2:-false}"
+    
+    # 如果是强制发送，直接返回成功
+    if [[ "$force_send" == "true" ]]; then
+        return 0
+    fi
+    
+    # 获取实例的namespace
+    local namespace=$(get_instance_namespace "$instance_id")
+    if [[ -z "$namespace" ]]; then
+        namespace="$CLIEXTRA_DEFAULT_NS"
+    fi
+    
+    # 获取状态文件路径
+    local status_file=$(get_instance_status_file "$instance_id" "$namespace")
+    
+    # 如果状态文件不存在，假设实例是空闲的
+    if [[ ! -f "$status_file" ]]; then
+        return 0  # 可以发送
+    fi
+    
+    # 读取状态
+    if command -v jq >/dev/null 2>&1; then
+        local status=$(jq -r '.status // "idle"' "$status_file" 2>/dev/null)
+        
+        # 检查状态
+        if [[ "$status" == "idle" ]]; then
+            return 0  # 可以发送
+        else
+            return 1  # 不能发送
+        fi
+    else
+        # 没有jq，假设可以发送
+        return 0
+    fi
 }
 
 # 记录广播消息到namespace缓存
@@ -242,6 +290,7 @@ broadcast_message() {
     local target_namespace="$2"
     local exclude_instance="$3"
     local dry_run="$4"
+    local force_send="${5:-false}"
     
     if [[ -z "$message" ]]; then
         echo "错误: 请指定要广播的消息"
@@ -305,19 +354,28 @@ broadcast_message() {
     echo "=== 开始广播 ==="
     local success_count=0
     local total_count=0
+    local skipped_count=0
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     local successful_instances=""
+    local skipped_instances=""
     
     for instance in $filtered_instances; do
         total_count=$((total_count + 1))
         local session_name="q_instance_$instance"
         
         if tmux has-session -t "$session_name" 2>/dev/null; then
-            # 发送消息到tmux会话
-            tmux send-keys -t "$session_name" "$message" Enter
-            echo "✓ 已发送到实例: $instance"
-            success_count=$((success_count + 1))
-            successful_instances="$successful_instances $instance"
+            # 检查实例状态
+            if check_broadcast_instance_status "$instance" "$force_send"; then
+                # 发送消息到tmux会话
+                tmux send-keys -t "$session_name" "$message" Enter
+                echo "✓ 已发送到实例: $instance"
+                success_count=$((success_count + 1))
+                successful_instances="$successful_instances $instance"
+            else
+                echo "⏸ 跳过忙碌实例: $instance"
+                skipped_count=$((skipped_count + 1))
+                skipped_instances="$skipped_instances $instance"
+            fi
         else
             echo "✗ 实例未运行: $instance"
         fi
@@ -361,6 +419,16 @@ broadcast_message() {
     echo ""
     echo "=== 广播完成 ==="
     echo "成功发送: $success_count/$total_count"
+    
+    if [[ $skipped_count -gt 0 ]]; then
+        echo "跳过忙碌实例: $skipped_count 个"
+        if [[ -n "$skipped_instances" ]]; then
+            echo "跳过的实例:$skipped_instances"
+        fi
+        if [[ "$force_send" != "true" ]]; then
+            echo "提示: 使用 --force 参数可以强制发送到所有实例"
+        fi
+    fi
 }
 
 # 解析参数
@@ -368,6 +436,7 @@ MESSAGE=""
 TARGET_NAMESPACE=""
 EXCLUDE_INSTANCE=""
 DRY_RUN=false
+FORCE_SEND=false
 SHOW_ALL_NAMESPACES=false
 
 while [[ $# -gt 0 ]]; do
@@ -383,6 +452,10 @@ while [[ $# -gt 0 ]]; do
         --exclude)
             EXCLUDE_INSTANCE="$2"
             shift 2
+            ;;
+        --force)
+            FORCE_SEND=true
+            shift
             ;;
         --dry-run)
             DRY_RUN=true
@@ -411,4 +484,4 @@ while [[ $# -gt 0 ]]; do
 done
 
 # 主逻辑
-broadcast_message "$MESSAGE" "$TARGET_NAMESPACE" "$EXCLUDE_INSTANCE" "$DRY_RUN"
+broadcast_message "$MESSAGE" "$TARGET_NAMESPACE" "$EXCLUDE_INSTANCE" "$DRY_RUN" "$FORCE_SEND"
