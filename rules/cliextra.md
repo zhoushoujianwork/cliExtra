@@ -1,0 +1,91 @@
+# cliExtra (qq) 快速使用指南
+
+## 基本命令
+
+```bash
+qq help                    # 查看完整帮助信息
+qq list                    # 查看所有实例
+qq list -o json            # JSON格式查看实例详情
+```
+
+## 协作核心功能
+
+### 1. 查看同 namespace 下的协作伙伴
+
+```bash
+# 查看所有实例（显示所有 namespace）
+qq list
+
+# 查看指定 namespace 的实例
+qq list --namespace q_cli
+qq list --namespace frontend
+
+# JSON格式查看详细信息（包含角色、状态、工具等）
+qq list -o json
+
+# 示例输出：可以看到每个实例的角色和 namespace
+# cliextra_1753323696_2086 (namespace: q_cli, role: fullstack)
+# cliextraweb_1753324164_28651 (namespace: q_cli, role: fullstack)
+```
+
+### 2. Workflow 协作流程
+
+```bash
+# 查看当前 workflow 配置
+qq workflow show
+
+# 查看 workflow 执行状态和角色分配
+qq workflow-engine status
+
+# 完成任务并自动通知下一个角色
+qq workflow-engine complete <task_id> [namespace] [deliverables]
+
+# 示例：后端完成开发任务
+qq workflow-engine complete backend_dev default "API接口,接口文档,测试数据"
+```
+
+### 3. 直接协作通信
+
+```bash
+# 发送消息给特定实例
+qq send cliextra_1753323696_2086 "需要协助处理这个功能"
+
+# 广播消息给所有实例
+qq broadcast "系统维护通知：今晚22:00-24:00"
+
+# 广播给指定 namespace
+qq broadcast "前端组件更新完成" --namespace frontend
+```
+
+## 协作工作流程
+
+1. **查看协作环境**：使用 `qq list` 了解当前有哪些协作伙伴
+2. **检查工作流程**：使用 `qq workflow show` 了解协作流程
+3. **查看角色分配**：使用 `qq workflow-engine status` 查看角色实例映射
+4. **完成任务**：使用 `qq workflow-engine complete` 自动触发协作
+5. **直接沟通**：必要时使用 `qq send` 进行点对点沟通
+
+## 快速上手示例
+
+```bash
+# 1. 查看帮助
+qq help
+
+# 2. 查看当前协作环境
+qq list -o json
+
+# 3. 查看工作流程配置
+qq workflow show
+
+# 4. 查看角色实例映射状态
+qq workflow-engine status
+
+# 5. 开始协作！
+# 完成任务时：
+qq workflow-engine complete backend_dev default "API开发完成"
+
+# 直接沟通时：
+qq send <实例名> "消息内容"
+```
+
+**记住**：不确定命令用法时，随时使用 `qq help` 查看完整文档。
