@@ -20,6 +20,7 @@ show_help() {
     echo "选项:"
     echo "  --verbose, -v   显示详细的分析过程和实时输出"
     echo "  --quiet, -q     静默模式，只显示关键信息"
+    echo "  --force, -f     强制覆盖现有文件，不显示确认提示"
     echo ""
     echo "功能:"
     echo "  - 启动临时分析实例"
@@ -32,6 +33,9 @@ show_help() {
     echo "  $0 ./ myproject          # 分析当前目录并指定项目名"
     echo "  $0 /path/to/project      # 分析指定目录项目"
     echo "  $0 ./ myproject --verbose # 显示详细分析过程"
+    echo "  $0 ./ myproject --force  # 强制覆盖现有文件"
+    echo "  $0 ./ myproject --quiet --force  # 静默强制覆盖"
+    echo "  $0 ./ myproject -v -f    # 详细模式 + 强制覆盖"
     echo ""
 }
 
@@ -380,6 +384,7 @@ main() {
     local project_name=""
     local verbose_mode=false
     local quiet_mode=false
+    local force_mode=false
     
     # 解析参数
     while [[ $# -gt 0 ]]; do
@@ -390,6 +395,10 @@ main() {
                 ;;
             --quiet|-q)
                 quiet_mode=true
+                shift
+                ;;
+            --force|-f)
+                force_mode=true
                 shift
                 ;;
             --help|-h)
@@ -444,12 +453,18 @@ main() {
     # 检查是否已存在project.md文件
     local project_md_file="$project_path/.amazonq/rules/project.md"
     if [ -f "$project_md_file" ]; then
-        if [ "$quiet_mode" = false ]; then
-            echo "⚠️  项目描述文件已存在: $project_md_file"
-            read -p "是否覆盖现有文件？(y/N): " confirm
-            if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-                echo "操作已取消"
-                exit 0
+        if [ "$force_mode" = true ]; then
+            if [ "$quiet_mode" = false ]; then
+                echo "🔄 强制模式：覆盖现有文件 $project_md_file"
+            fi
+        else
+            if [ "$quiet_mode" = false ]; then
+                echo "⚠️  项目描述文件已存在: $project_md_file"
+                read -p "是否覆盖现有文件？(y/N): " confirm
+                if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+                    echo "操作已取消"
+                    exit 0
+                fi
             fi
         fi
     fi
