@@ -617,8 +617,7 @@ $role_content
         # 创建实例状态文件
         if [ -f "$SCRIPT_DIR/cliExtra-status-manager.sh" ]; then
             source "$SCRIPT_DIR/cliExtra-status-manager.sh"
-            local initial_task="实例启动完成，等待任务"
-            if create_status_file "$instance_id" "$STATUS_IDLE" "$initial_task" "$namespace"; then
+            if create_status_file "$instance_id" "$STATUS_IDLE" "$namespace"; then
                 echo "✓ 状态文件已创建"
             else
                 echo "⚠️  状态文件创建失败，但不影响实例运行"

@@ -117,6 +117,18 @@ create_namespace() {
         return 1
     fi
     
+    # 验证namespace名称长度
+    if [[ ${#ns_name} -gt 32 ]]; then
+        echo "错误: namespace名称过长 (${#ns_name} > 32 字符)"
+        return 1
+    fi
+    
+    # 验证不能包含中文或特殊字符
+    if [[ "$ns_name" =~ [^a-zA-Z0-9_-] ]]; then
+        echo "错误: namespace名称包含无效字符。只能使用英文字母、数字、下划线(_)和连字符(-)"
+        return 1
+    fi
+    
     # 检查是否为保留名称
     if is_reserved_namespace "$ns_name"; then
         echo "错误: '$ns_name' 是保留名称，不能用作namespace"

@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# cliExtra 实例状态管理核心函数库 - 跨平台版本
-# 基于 cliExtra-config.sh 的跨平台配置实现
+# cliExtra 实例状态管理核心函数库 - 简化版本
+# 使用简单的数字状态：0=idle, 1=busy
 
 # 加载配置和公共函数
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -9,10 +9,28 @@ source "$SCRIPT_DIR/cliExtra-config.sh"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 
 # 状态值定义
-readonly STATUS_IDLE="idle"
-readonly STATUS_BUSY="busy"
-readonly STATUS_WAITING="waiting"
-readonly STATUS_ERROR="error"
+readonly STATUS_IDLE=0
+readonly STATUS_BUSY=1
+
+# 状态值到名称的映射
+status_to_name() {
+    local status="$1"
+    case "$status" in
+        "0") echo "idle" ;;
+        "1") echo "busy" ;;
+        *) echo "unknown" ;;
+    esac
+}
+
+# 状态名称到值的映射
+name_to_status() {
+    local name="$1"
+    case "$name" in
+        "idle") echo "0" ;;
+        "busy") echo "1" ;;
+        *) echo "-1" ;;  # 无效状态
+    esac
+}
 
 # 获取当前时间戳 (ISO 8601 格式)
 get_timestamp() {
@@ -35,11 +53,29 @@ get_instance_pid() {
 create_status_file() {
     local instance_id="$1"
     local status="$2"
-    local task="${3:-}"
-    local namespace="${4:-$CLIEXTRA_DEFAULT_NS}"
+    local namespace="${3:-$CLIEXTRA_DEFAULT_NS}"
     
     if [[ -z "$instance_id" || -z "$status" ]]; then
         echo "错误: 实例ID和状态不能为空" >&2
+        return 1
+    fi
+    
+    # 验证 namespace 名称格式
+    if [[ ! "$namespace" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "错误: 无效的 namespace 名称 '$namespace'。只能包含字母、数字、下划线和连字符" >&2
+        echo "使用默认 namespace: $CLIEXTRA_DEFAULT_NS" >&2
+        namespace="$CLIEXTRA_DEFAULT_NS"
+    fi
+    
+    # 验证 namespace 名称长度
+    if [[ ${#namespace} -gt 32 ]]; then
+        echo "错误: namespace 名称过长 (${#namespace} > 32)。使用默认 namespace: $CLIEXTRA_DEFAULT_NS" >&2
+        namespace="$CLIEXTRA_DEFAULT_NS"
+    fi
+    
+    # 验证状态值
+    if [[ "$status" != "0" && "$status" != "1" ]]; then
+        echo "错误: 无效的状态值 '$status'。有效值: 0 (idle), 1 (busy)" >&2
         return 1
     fi
     
@@ -56,22 +92,9 @@ create_status_file() {
         fi
     fi
     
+    # 原子操作：写入状态值
     local temp_file="${status_file}.tmp.$$"
-    local timestamp=$(get_timestamp)
-    local pid=$(get_instance_pid "$instance_id")
-    
-    # 创建状态JSON
-    cat > "$temp_file" << EOF
-{
-  "status": "$status",
-  "timestamp": "$timestamp",
-  "task": "$task",
-  "pid": "$pid",
-  "last_activity": "$timestamp",
-  "instance_id": "$instance_id",
-  "namespace": "$namespace"
-}
-EOF
+    echo "$status" > "$temp_file"
     
     if [[ $? -eq 0 ]]; then
         # 原子操作：重命名临时文件
@@ -94,66 +117,10 @@ EOF
 update_status_file() {
     local instance_id="$1"
     local status="$2"
-    local task="${3:-}"
-    local namespace="${4:-$CLIEXTRA_DEFAULT_NS}"
+    local namespace="${3:-$CLIEXTRA_DEFAULT_NS}"
     
-    if [[ -z "$instance_id" || -z "$status" ]]; then
-        echo "错误: 实例ID和状态不能为空" >&2
-        return 1
-    fi
-    
-    local status_file=$(get_instance_status_file "$instance_id" "$namespace")
-    
-    # 检查状态文件是否存在
-    if [[ ! -f "$status_file" ]]; then
-        echo "警告: 状态文件不存在，创建新文件" >&2
-        create_status_file "$instance_id" "$status" "$task" "$namespace"
-        return $?
-    fi
-    
-    local temp_file="${status_file}.tmp.$$"
-    local timestamp=$(get_timestamp)
-    local pid=$(get_instance_pid "$instance_id")
-    
-    # 读取现有状态文件，保留部分信息
-    local original_timestamp=""
-    if command -v jq >/dev/null 2>&1; then
-        original_timestamp=$(jq -r '.timestamp // ""' "$status_file" 2>/dev/null)
-    fi
-    
-    # 如果无法读取原始时间戳，使用当前时间
-    if [[ -z "$original_timestamp" || "$original_timestamp" == "null" ]]; then
-        original_timestamp="$timestamp"
-    fi
-    
-    # 更新状态JSON
-    cat > "$temp_file" << EOF
-{
-  "status": "$status",
-  "timestamp": "$original_timestamp",
-  "task": "$task",
-  "pid": "$pid",
-  "last_activity": "$timestamp",
-  "instance_id": "$instance_id",
-  "namespace": "$namespace"
-}
-EOF
-    
-    if [[ $? -eq 0 ]]; then
-        # 原子操作：重命名临时文件
-        mv "$temp_file" "$status_file"
-        if [[ $? -eq 0 ]]; then
-            return 0
-        else
-            echo "错误: 无法更新状态文件 $status_file" >&2
-            rm -f "$temp_file"
-            return 1
-        fi
-    else
-        echo "错误: 无法写入临时状态文件" >&2
-        rm -f "$temp_file"
-        return 1
-    fi
+    # 直接调用创建函数，因为逻辑相同
+    create_status_file "$instance_id" "$status" "$namespace"
 }
 
 # 读取状态文件
@@ -169,11 +136,20 @@ read_status_file() {
     local status_file=$(get_instance_status_file "$instance_id" "$namespace")
     
     if [[ ! -f "$status_file" ]]; then
-        echo "错误: 状态文件不存在 $status_file" >&2
-        return 1
+        echo "0"  # 默认为空闲状态
+        return 0
     fi
     
-    cat "$status_file"
+    local status=$(cat "$status_file" 2>/dev/null | tr -d '\n\r\t ')
+    
+    # 验证状态值
+    if [[ "$status" == "0" || "$status" == "1" ]]; then
+        echo "$status"
+        return 0
+    else
+        echo "0"  # 无效状态默认为空闲
+        return 0
+    fi
 }
 
 # 删除状态文件
@@ -206,11 +182,11 @@ validate_status() {
     local status="$1"
     
     case "$status" in
-        "$STATUS_IDLE"|"$STATUS_BUSY"|"$STATUS_WAITING"|"$STATUS_ERROR")
+        "0"|"1")
             return 0
             ;;
         *)
-            echo "错误: 无效的状态值 '$status'。有效值: $STATUS_IDLE, $STATUS_BUSY, $STATUS_WAITING, $STATUS_ERROR" >&2
+            echo "错误: 无效的状态值 '$status'。有效值: 0 (idle), 1 (busy)" >&2
             return 1
             ;;
     esac
@@ -219,24 +195,16 @@ validate_status() {
 # 消息接收时自动设置实例状态为 busy
 auto_set_busy_on_message() {
     local instance_id="$1"
-    local message="$2"
+    local message="$2"  # 消息内容（暂时不使用，为了兼容调用）
     local namespace="${3:-$CLIEXTRA_DEFAULT_NS}"
     
-    if [[ -z "$instance_id" || -z "$message" ]]; then
-        echo "错误: 实例ID和消息内容不能为空" >&2
+    if [[ -z "$instance_id" ]]; then
+        echo "错误: 实例ID不能为空" >&2
         return 1
     fi
     
-    # 截取消息前50个字符作为任务描述
-    local task_desc="处理消息: "
-    if [[ ${#message} -gt 50 ]]; then
-        task_desc="${task_desc}${message:0:50}..."
-    else
-        task_desc="${task_desc}${message}"
-    fi
-    
-    # 更新状态为 busy
-    update_status_file "$instance_id" "$STATUS_BUSY" "$task_desc" "$namespace"
+    # 更新状态为 busy (1)
+    update_status_file "$instance_id" "$STATUS_BUSY" "$namespace"
     
     if [[ $? -eq 0 ]]; then
         return 0
@@ -248,26 +216,12 @@ auto_set_busy_on_message() {
 
 # 批量设置多个实例状态为 busy（用于广播）
 auto_set_busy_on_broadcast() {
-    local message="$1"
-    shift
+    shift  # 跳过消息参数，只处理实例列表
     local instances=("$@")
-    
-    if [[ -z "$message" ]]; then
-        echo "错误: 消息内容不能为空" >&2
-        return 1
-    fi
     
     if [[ ${#instances[@]} -eq 0 ]]; then
         echo "错误: 实例列表不能为空" >&2
         return 1
-    fi
-    
-    # 截取消息前50个字符作为任务描述
-    local task_desc="处理广播: "
-    if [[ ${#message} -gt 50 ]]; then
-        task_desc="${task_desc}${message:0:50}..."
-    else
-        task_desc="${task_desc}${message}"
     fi
     
     local success_count=0
@@ -280,8 +234,8 @@ auto_set_busy_on_broadcast() {
             namespace="$CLIEXTRA_DEFAULT_NS"
         fi
         
-        # 更新状态为 busy
-        if update_status_file "$instance_id" "$STATUS_BUSY" "$task_desc" "$namespace"; then
+        # 更新状态为 busy (1)
+        if update_status_file "$instance_id" "$STATUS_BUSY" "$namespace"; then
             success_count=$((success_count + 1))
         else
             echo "警告: 无法更新实例 $instance_id 的状态" >&2
