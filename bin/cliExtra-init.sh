@@ -11,11 +11,15 @@ show_help() {
     echo "cliExtra 项目初始化工具"
     echo ""
     echo "用法:"
-    echo "  $0 <project_path> [project_name]"
+    echo "  $0 <project_path> [project_name] [options]"
     echo ""
     echo "参数:"
     echo "  project_path    项目目录路径（如：./ 或 /path/to/project）"
     echo "  project_name    项目名称（可选，默认使用目录名）"
+    echo ""
+    echo "选项:"
+    echo "  --verbose, -v   显示详细的分析过程和实时输出"
+    echo "  --quiet, -q     静默模式，只显示关键信息"
     echo ""
     echo "功能:"
     echo "  - 启动临时分析实例"
@@ -27,6 +31,7 @@ show_help() {
     echo "  $0 ./                    # 分析当前目录项目"
     echo "  $0 ./ myproject          # 分析当前目录并指定项目名"
     echo "  $0 /path/to/project      # 分析指定目录项目"
+    echo "  $0 ./ myproject --verbose # 显示详细分析过程"
     echo ""
 }
 
@@ -148,6 +153,11 @@ qq start --role [推荐角色] --name [项目名]-[角色]
 5. 生成并保存 project.md 文件
 6. 输出分析完成的确认信息
 
+**重要**: 完成分析后，请输出明确的完成信号：
+- 输出 "✅ 项目分析完成！"
+- 输出 "📄 project.md 文件已创建并保存"
+- 显示文件的保存路径
+
 请开始分析项目：$project_path
 EOF
 }
@@ -177,13 +187,17 @@ wait_for_instance() {
     return 1
 }
 
-# 发送分析请求并等待完成
+# 发送分析请求并实时显示输出
 send_analysis_request() {
     local instance_id="$1"
     local prompt="$2"
     local project_path="$3"
+    local verbose_mode="$4"
+    local quiet_mode="$5"
     
-    echo "发送项目分析请求..."
+    if [ "$quiet_mode" = false ]; then
+        echo "发送项目分析请求..."
+    fi
     
     # 发送分析提示词
     "$SCRIPT_DIR/cliExtra-send.sh" "$instance_id" "$prompt"
@@ -193,31 +207,161 @@ send_analysis_request() {
         return 1
     fi
     
-    echo "分析请求已发送，AI正在分析项目..."
-    echo "这可能需要1-2分钟时间，请耐心等待..."
+    if [ "$quiet_mode" = false ]; then
+        echo "分析请求已发送，AI正在分析项目..."
+        if [ "$verbose_mode" = true ]; then
+            echo "实时输出 (按 Ctrl+C 可中断):"
+            echo "----------------------------------------"
+        fi
+    fi
     
-    # 等待分析完成（检查project.md文件是否生成）
-    local max_wait=120  # 最多等待2分钟
-    local count=0
+    # 实时监控tmux会话输出
+    monitor_analysis_progress "$instance_id" "$project_path" "$verbose_mode" "$quiet_mode"
+}
+
+# 监控分析进度并实时显示输出
+monitor_analysis_progress() {
+    local instance_id="$1"
+    local project_path="$2"
+    local verbose_mode="$3"
+    local quiet_mode="$4"
+    local session_name="q_instance_$instance_id"
     local project_md_file="$project_path/.amazonq/rules/project.md"
+    local max_wait=300  # 最多等待5分钟
+    local count=0
+    local last_output=""
+    local completion_indicators=(
+        "项目分析完成"
+        "分析报告已生成"
+        "project.md 文件已创建"
+        "project.md 文件已保存"
+        "✅ 项目分析完成"
+        "📄 project.md 文件已创建并保存"
+    )
+    
+    local thinking_indicators=(
+        "⠋ Thinking"
+        "⠙ Thinking"
+        "⠹ Thinking"
+        "⠸ Thinking"
+        "⠼ Thinking"
+        "⠴ Thinking"
+        "⠦ Thinking"
+        "⠧ Thinking"
+        "⠇ Thinking"
+        "⠏ Thinking"
+    )
+    
+    if [ "$verbose_mode" = true ] && [ "$quiet_mode" = false ]; then
+        echo "🔍 开始监控分析进程..."
+    fi
+    
+    # 创建临时文件存储输出
+    local temp_output="/tmp/tmux_output_$$"
     
     while [ $count -lt $max_wait ]; do
-        if [ -f "$project_md_file" ]; then
-            echo "✅ 项目分析完成！"
-            echo "📄 项目描述文件已生成: $project_md_file"
-            return 0
+        # 捕获tmux会话的当前输出
+        if tmux has-session -t "$session_name" 2>/dev/null; then
+            # 获取最新的输出内容
+            tmux capture-pane -t "$session_name" -p > "$temp_output" 2>/dev/null
+            
+            # 检查是否有新输出
+            local current_output=$(tail -10 "$temp_output" 2>/dev/null)
+            if [ "$current_output" != "$last_output" ] && [ "$verbose_mode" = true ] && [ "$quiet_mode" = false ]; then
+                # 显示新的输出内容
+                echo "📝 AI输出更新:"
+                echo "$current_output" | tail -5
+                echo "----------------------------------------"
+                last_output="$current_output"
+            fi
+            
+            # 检查是否包含完成指示符
+            local is_thinking=false
+            for thinking in "${thinking_indicators[@]}"; do
+                if echo "$current_output" | grep -q "$thinking"; then
+                    is_thinking=true
+                    if [ "$verbose_mode" = true ] && [ "$quiet_mode" = false ]; then
+                        echo "🤔 AI正在思考中..."
+                    fi
+                    break
+                fi
+            done
+            
+            # 只有在不是思考状态时才检查完成指示符
+            if [ "$is_thinking" = false ]; then
+                for indicator in "${completion_indicators[@]}"; do
+                    if echo "$current_output" | grep -q "$indicator"; then
+                        if [ "$verbose_mode" = true ] && [ "$quiet_mode" = false ]; then
+                            echo "🎯 检测到完成指示符: $indicator"
+                        fi
+                        break 2
+                    fi
+                done
+            fi
+            
+            # 检查文件是否已生成且内容完整
+            if [ -f "$project_md_file" ]; then
+                local file_size=$(wc -c < "$project_md_file" 2>/dev/null || echo "0")
+                if [ "$file_size" -gt 1000 ]; then  # 文件大小超过1KB，认为内容比较完整
+                    # 检查文件是否包含关键部分
+                    if grep -q "## 项目概述" "$project_md_file" && \
+                       grep -q "## 技术栈" "$project_md_file" && \
+                       grep -q "## 建议的开发人员配置" "$project_md_file"; then
+                        if [ "$quiet_mode" = false ]; then
+                            echo "✅ 项目分析完成！"
+                            echo "📄 项目描述文件已生成: $project_md_file"
+                            echo "📊 文件大小: ${file_size} 字节"
+                        fi
+                        rm -f "$temp_output"
+                        return 0
+                    fi
+                fi
+            fi
+        else
+            if [ "$quiet_mode" = false ]; then
+                echo "⚠️  tmux会话已结束，检查是否有错误..."
+            fi
+            break
         fi
-        sleep 2
-        count=$((count + 2))
         
-        # 每10秒显示一次进度
-        if [ $((count % 10)) -eq 0 ]; then
+        sleep 3
+        count=$((count + 3))
+        
+        # 每30秒显示一次进度
+        if [ $((count % 30)) -eq 0 ] && [ "$quiet_mode" = false ]; then
             echo "⏳ 分析进行中... (${count}s/${max_wait}s)"
+            if [ -f "$project_md_file" ]; then
+                local current_size=$(wc -c < "$project_md_file" 2>/dev/null || echo "0")
+                echo "📝 当前文件大小: ${current_size} 字节"
+            fi
         fi
     done
     
-    echo "⚠️  分析可能仍在进行中，请稍后检查文件: $project_md_file"
-    return 0
+    # 清理临时文件
+    rm -f "$temp_output"
+    
+    # 检查最终状态
+    if [ -f "$project_md_file" ]; then
+        local final_size=$(wc -c < "$project_md_file" 2>/dev/null || echo "0")
+        if [ "$final_size" -gt 500 ]; then
+            if [ "$quiet_mode" = false ]; then
+                echo "⚠️  分析可能已完成，但未检测到明确的完成信号"
+                echo "📄 项目描述文件: $project_md_file"
+                echo "📊 文件大小: ${final_size} 字节"
+                echo "💡 建议检查文件内容确认分析质量"
+            fi
+            return 0
+        else
+            echo "❌ 分析可能失败，生成的文件内容过少"
+            echo "📄 文件路径: $project_md_file"
+            echo "📊 文件大小: ${final_size} 字节"
+            return 1
+        fi
+    else
+        echo "❌ 分析超时或失败，未生成项目描述文件"
+        echo "💡 建议检查项目目录和AI实例状态"
+        return 1
+    fi
 }
 
 # 清理临时实例
@@ -232,8 +376,40 @@ cleanup_temp_instance() {
 
 # 主函数
 main() {
-    local project_path="$1"
-    local project_name="$2"
+    local project_path=""
+    local project_name=""
+    local verbose_mode=false
+    local quiet_mode=false
+    
+    # 解析参数
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            --verbose|-v)
+                verbose_mode=true
+                shift
+                ;;
+            --quiet|-q)
+                quiet_mode=true
+                shift
+                ;;
+            --help|-h)
+                show_help
+                exit 0
+                ;;
+            *)
+                if [ -z "$project_path" ]; then
+                    project_path="$1"
+                elif [ -z "$project_name" ]; then
+                    project_name="$1"
+                else
+                    echo "错误: 未知参数 $1"
+                    show_help
+                    exit 1
+                fi
+                shift
+                ;;
+        esac
+    done
     
     # 参数验证
     if [ -z "$project_path" ]; then
@@ -255,19 +431,26 @@ main() {
         project_name=$(basename "$project_path")
     fi
     
-    echo "🚀 开始项目初始化分析"
-    echo "📁 项目路径: $project_path"
-    echo "📝 项目名称: $project_name"
-    echo ""
+    if [ "$quiet_mode" = false ]; then
+        echo "🚀 开始项目初始化分析"
+        echo "📁 项目路径: $project_path"
+        echo "📝 项目名称: $project_name"
+        if [ "$verbose_mode" = true ]; then
+            echo "🔍 详细模式: 将显示实时分析过程"
+        fi
+        echo ""
+    fi
     
     # 检查是否已存在project.md文件
     local project_md_file="$project_path/.amazonq/rules/project.md"
     if [ -f "$project_md_file" ]; then
-        echo "⚠️  项目描述文件已存在: $project_md_file"
-        read -p "是否覆盖现有文件？(y/N): " confirm
-        if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
-            echo "操作已取消"
-            exit 0
+        if [ "$quiet_mode" = false ]; then
+            echo "⚠️  项目描述文件已存在: $project_md_file"
+            read -p "是否覆盖现有文件？(y/N): " confirm
+            if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+                echo "操作已取消"
+                exit 0
+            fi
         fi
     fi
     
@@ -294,24 +477,30 @@ main() {
     local analysis_prompt=$(generate_analysis_prompt "$project_path" "$project_name")
     
     # 发送分析请求
-    if send_analysis_request "$temp_instance_id" "$analysis_prompt" "$project_path"; then
-        echo ""
-        echo "🎉 项目初始化完成！"
-        echo ""
-        echo "📋 生成的文件:"
-        echo "   $project_md_file"
-        echo ""
-        echo "💡 下一步建议:"
-        echo "   1. 查看生成的项目描述: cat '$project_md_file'"
-        echo "   2. 根据建议启动合适的开发实例"
-        echo "   3. 开始项目开发工作"
-        echo ""
+    if send_analysis_request "$temp_instance_id" "$analysis_prompt" "$project_path" "$verbose_mode" "$quiet_mode"; then
+        if [ "$quiet_mode" = false ]; then
+            echo ""
+            echo "🎉 项目初始化完成！"
+            echo ""
+            echo "📋 生成的文件:"
+            echo "   $project_md_file"
+            echo ""
+            echo "💡 下一步建议:"
+            echo "   1. 查看生成的项目描述: cat '$project_md_file'"
+            echo "   2. 根据建议启动合适的开发实例"
+            echo "   3. 开始项目开发工作"
+            echo ""
+        fi
     else
         echo "❌ 项目分析可能未完成，请检查实例状态"
     fi
     
     # 清理临时实例
-    cleanup_temp_instance "$temp_instance_id"
+    if [ "$quiet_mode" = false ]; then
+        cleanup_temp_instance "$temp_instance_id"
+    else
+        cleanup_temp_instance "$temp_instance_id" >/dev/null 2>&1
+    fi
 }
 
 # 处理命令行参数
