@@ -3,10 +3,77 @@
 # cliExtra 实例状态管理命令
 # 实现类似 PID 文件的实例状态标记系统
 
-# 加载公共函数和状态管理器
+# 加载配置、公共函数和状态管理器
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/cliExtra-config.sh"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 source "$SCRIPT_DIR/cliExtra-status-manager.sh"
+
+# 检查实例是否存活
+is_instance_alive() {
+    local instance_id="$1"
+    local namespace="${2:-$CLIEXTRA_DEFAULT_NS}"
+    
+    local status_file=$(get_instance_status_file "$instance_id" "$namespace")
+    
+    if [[ ! -f "$status_file" ]]; then
+        return 1
+    fi
+    
+    # 检查tmux会话是否存在
+    local session_name="q_instance_$instance_id"
+    if tmux has-session -t "$session_name" 2>/dev/null; then
+        return 0
+    else
+        # 会话不存在，清理状态文件
+        remove_status_file "$instance_id" "$namespace"
+        return 1
+    fi
+}
+
+# 获取所有状态文件
+get_all_status_files() {
+    local namespace="${1:-}"
+    local show_all_namespaces="${2:-false}"
+    
+    local status_files=()
+    
+    if [[ -n "$namespace" ]]; then
+        # 指定namespace
+        local status_dir=$(get_instance_status_dir "$namespace")
+        if [[ -d "$status_dir" ]]; then
+            for status_file in "$status_dir"/*.status; do
+                if [[ -f "$status_file" ]]; then
+                    status_files+=("$status_file")
+                fi
+            done
+        fi
+    elif [[ "$show_all_namespaces" == "true" ]]; then
+        # 所有namespace
+        local cliextra_home=$(get_cliextra_home)
+        for ns_dir in "$cliextra_home/$CLIEXTRA_NAMESPACES_SUBDIR"/*; do
+            if [[ -d "$ns_dir/$CLIEXTRA_STATUS_SUBDIR" ]]; then
+                for status_file in "$ns_dir/$CLIEXTRA_STATUS_SUBDIR"/*.status; do
+                    if [[ -f "$status_file" ]]; then
+                        status_files+=("$status_file")
+                    fi
+                done
+            fi
+        done
+    else
+        # 默认只显示default namespace
+        local status_dir=$(get_instance_status_dir "$CLIEXTRA_DEFAULT_NS")
+        if [[ -d "$status_dir" ]]; then
+            for status_file in "$status_dir"/*.status; do
+                if [[ -f "$status_file" ]]; then
+                    status_files+=("$status_file")
+                fi
+            done
+        fi
+    fi
+    
+    printf '%s\n' "${status_files[@]}"
+}
 
 # 显示帮助信息
 show_help() {
