@@ -349,6 +349,49 @@ install_default_tools() {
     done
 }
 
+# 准备角色定义到项目目录
+prepare_role_definitions() {
+    local project_dir="$1"
+    local role="$2"
+    local roles_source_dir="$SCRIPT_DIR/../roles"
+    local roles_target_dir="$project_dir/.cliExtra/roles"
+    
+    # 创建目标目录
+    mkdir -p "$roles_target_dir"
+    
+    # 如果指定了角色，确保该角色文件存在
+    if [ -n "$role" ]; then
+        local role_file="${role}-engineer.md"
+        local source_role_file="$roles_source_dir/$role_file"
+        local target_role_file="$roles_target_dir/$role_file"
+        
+        # 检查项目目录是否已有该角色文件
+        if [ -f "$target_role_file" ]; then
+            echo "✓ 角色定义已存在: $target_role_file" >&2
+        elif [ -f "$source_role_file" ]; then
+            echo "复制角色定义: $role_file" >&2
+            cp "$source_role_file" "$target_role_file"
+            echo "✓ 角色定义已复制到: $target_role_file" >&2
+        else
+            echo "⚠ 警告: 未找到角色定义文件: $source_role_file" >&2
+            return 1
+        fi
+        
+        # 返回角色文件路径，用于后续作为context传入
+        echo "$target_role_file"
+    else
+        # 如果没有指定角色，检查项目目录是否有任何角色文件
+        local existing_roles=$(find "$roles_target_dir" -name "*-engineer.md" 2>/dev/null | head -1)
+        if [ -n "$existing_roles" ]; then
+            echo "✓ 发现现有角色定义: $(basename "$existing_roles")" >&2
+            echo "$existing_roles"
+        else
+            echo "未指定角色且项目中无现有角色定义" >&2
+            return 0
+        fi
+    fi
+}
+
 # 同步rules到项目目录
 sync_rules_to_project() {
     local project_dir="$1"
@@ -435,6 +478,7 @@ start_tmux_instance() {
     local namespace="$3"
     local context_instance="$4"
     local force="$5"
+    local role="$6"
     local session_name="q_instance_$instance_id"
     
     # 使用工作目录统一管理所有实例信息
@@ -482,6 +526,16 @@ EOF
     # 安装默认工具
     install_default_tools "$project_dir"
     
+    # 准备角色定义
+    local role_file=""
+    if [ -n "$role" ] || [ -z "$context_instance" ]; then
+        role_file=$(prepare_role_definitions "$project_dir" "$role")
+        if [ $? -ne 0 ] && [ -n "$role" ]; then
+            echo "⚠ 角色定义准备失败，将不使用角色上下文"
+            role_file=""
+        fi
+    fi
+    
     # 检查实例是否已经在运行
     if tmux has-session -t "$session_name" 2>/dev/null; then
         if [ "$force" = "true" ]; then
@@ -503,14 +557,32 @@ EOF
     echo "会话目录: $session_dir"
     echo "Tmux日志: $tmux_log_file"
     echo "对话记录: $conversation_file"
+    if [ -n "$role_file" ]; then
+        echo "角色定义: $role_file"
+    fi
+    
+    # 构建 q chat 命令
+    local q_command="q chat --trust-all-tools"
+    
+    # 如果有角色文件，添加为 context
+    if [ -n "$role_file" ] && [ -f "$role_file" ]; then
+        echo "使用角色定义作为上下文: $(basename "$role_file")"
+        q_command="q chat --trust-all-tools --context \"$role_file\""
+    fi
     
     # 启动tmux会话，在项目目录中运行
-    tmux new-session -d -s "$session_name" -c "$project_dir" "q chat --trust-all-tools"
+    tmux new-session -d -s "$session_name" -c "$project_dir"
     
     # 启用tmux日志记录
     tmux pipe-pane -t "$session_name" -o "cat >> '$tmux_log_file'"
     
     # 等待一下确保会话启动
+    sleep 2
+    
+    # 发送 q chat 命令
+    tmux send-keys -t "$session_name" "$q_command" Enter
+    
+    # 等待 Q 启动
     sleep 3
     
     # 如果指定了上下文实例，加载其历史对话
@@ -530,6 +602,8 @@ INSTANCE_ID="$instance_id"
 PROJECT_DIR="$project_dir"
 SESSION_NAME="$session_name"
 NAMESPACE="$namespace"
+ROLE="$role"
+ROLE_FILE="$role_file"
 STARTED_AT="$(date)"
 PID="$$"
 CONVERSATION_FILE="$conversation_file"
@@ -575,15 +649,5 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# 应用角色预设（如果指定）
-if [ -n "$role" ]; then
-    echo "应用角色预设: $role"
-    if [ "$force" = "true" ]; then
-        "$SCRIPT_DIR/cliExtra-role.sh" apply "$role" -f
-    else
-        "$SCRIPT_DIR/cliExtra-role.sh" apply "$role"
-    fi
-fi
-
 # 启动实例
-start_tmux_instance "$instance_id" "$project_dir" "$namespace" "$context_instance" "$force" 
+start_tmux_instance "$instance_id" "$project_dir" "$namespace" "$context_instance" "$force" "$role" 
