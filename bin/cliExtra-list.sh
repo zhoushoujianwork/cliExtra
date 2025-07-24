@@ -8,7 +8,7 @@ source "$SCRIPT_DIR/cliExtra-common.sh"
 
 # 显示帮助
 show_help() {
-    echo "用法: cliExtra list [instance_id] [-o json] [-n namespace]"
+    echo "用法: cliExtra list [instance_id] [-o json] [-n namespace] [--names-only]"
     echo ""
     echo "参数:"
     echo "  instance_id   显示指定实例的详细信息"
@@ -16,14 +16,17 @@ show_help() {
     echo "选项:"
     echo "  -o, --output <format>     输出格式：table（默认）或 json"
     echo "  -n, --namespace <name>    只显示指定 namespace 中的实例"
+    echo "  --names-only              只输出实例名称（便于脚本解析）"
     echo ""
     echo "输出格式:"
-    echo "  无参数: 每行一个实例ID，便于脚本解析"
+    echo "  默认: 表格格式显示实例信息（包含 namespace、状态等）"
+    echo "  --names-only: 每行一个实例ID，便于脚本解析"
     echo "  有实例ID: 显示该实例的详细信息"
     echo "  -o json: 结构化的JSON格式输出"
     echo ""
     echo "示例:"
-    echo "  cliExtra list                         # 列出所有实例ID"
+    echo "  cliExtra list                         # 表格格式列出所有实例"
+    echo "  cliExtra list --names-only            # 只列出实例名称"
     echo "  cliExtra list -o json                 # JSON格式列出所有实例"
     echo "  cliExtra list -n frontend             # 列出frontend namespace中的实例"
     echo "  cliExtra list -n backend -o json      # JSON格式列出backend namespace中的实例"
@@ -35,6 +38,7 @@ show_help() {
 JSON_OUTPUT=false
 TARGET_INSTANCE=""
 FILTER_NAMESPACE=""
+NAMES_ONLY=false
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -47,6 +51,10 @@ while [[ $# -gt 0 ]]; do
         -n|--namespace)
             FILTER_NAMESPACE="$2"
             shift 2
+            ;;
+        --names-only)
+            NAMES_ONLY=true
+            shift
             ;;
         --json)
             # 保持向后兼容
@@ -296,22 +304,48 @@ get_all_instances() {
     # 输出结果
     if [ "$JSON_OUTPUT" = true ]; then
         output_json "${instance_data[@]}"
+    elif [ "$NAMES_ONLY" = true ]; then
+        output_names_only "${instance_data[@]}"
     else
-        output_simple "${instances[@]}"
+        output_simple "${instance_data[@]}"
     fi
 }
 
-# 简洁输出格式（每行一个实例ID）
-output_simple() {
-    local instances=("$@")
+# 只输出实例名称（便于脚本解析）
+output_names_only() {
+    local instance_data=("$@")
     
-    if [ ${#instances[@]} -eq 0 ]; then
+    if [ ${#instance_data[@]} -eq 0 ]; then
         # 没有实例时不输出任何内容，便于脚本解析
         return 0
     fi
     
-    for instance_id in "${instances[@]}"; do
+    # 只输出实例名称
+    for data in "${instance_data[@]}"; do
+        IFS=':' read -r instance_id status session_name namespace <<< "$data"
         echo "$instance_id"
+    done
+}
+
+# 简洁输出格式（类似 kubectl 的格式）
+output_simple() {
+    local instance_data=("$@")
+    
+    if [ ${#instance_data[@]} -eq 0 ]; then
+        # 没有实例时不输出任何内容，便于脚本解析
+        return 0
+    fi
+    
+    # 输出表头
+    printf "%-30s %-15s %-15s %-15s\n" "NAME" "NAMESPACE" "STATUS" "SESSION"
+    
+    # 输出分隔线
+    printf "%-30s %-15s %-15s %-15s\n" "$(printf '%*s' 30 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')"
+    
+    # 输出实例信息
+    for data in "${instance_data[@]}"; do
+        IFS=':' read -r instance_id status session_name namespace <<< "$data"
+        printf "%-30s %-15s %-15s %-15s\n" "$instance_id" "$namespace" "$status" "$session_name"
     done
 }
 
