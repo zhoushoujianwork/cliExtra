@@ -43,12 +43,28 @@ NAMES_ONLY=false
 while [[ $# -gt 0 ]]; do
     case $1 in
         -o|--output)
-            if [[ "$2" == "json" ]]; then
-                JSON_OUTPUT=true
+            if [[ -z "$2" ]]; then
+                echo "错误: -o|--output 参数需要指定格式 (json)"
+                echo ""
+                show_help
+                exit 1
             fi
+            if [[ "$2" != "json" ]]; then
+                echo "错误: 不支持的输出格式 '$2'，支持的格式: json"
+                echo ""
+                show_help
+                exit 1
+            fi
+            JSON_OUTPUT=true
             shift 2
             ;;
         -n|--namespace)
+            if [[ -z "$2" ]]; then
+                echo "错误: -n|--namespace 参数需要指定 namespace 名称"
+                echo ""
+                show_help
+                exit 1
+            fi
             FILTER_NAMESPACE="$2"
             shift 2
             ;;
@@ -65,9 +81,20 @@ while [[ $# -gt 0 ]]; do
             show_help
             exit 0
             ;;
+        -*)
+            echo "错误: 未知选项 '$1'"
+            echo ""
+            show_help
+            exit 1
+            ;;
         *)
             if [[ -z "$TARGET_INSTANCE" ]]; then
                 TARGET_INSTANCE="$1"
+            else
+                echo "错误: 多余的参数 '$1'"
+                echo ""
+                show_help
+                exit 1
             fi
             shift
             ;;

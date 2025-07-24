@@ -151,18 +151,34 @@ parse_start_args() {
     while [[ $# -gt 0 ]]; do
         case $1 in
             --name)
+                if [[ -z "$2" ]]; then
+                    echo "错误: --name 参数需要指定实例名称"
+                    return 1
+                fi
                 instance_name="$2"
                 shift 2
                 ;;
             --role)
+                if [[ -z "$2" ]]; then
+                    echo "错误: --role 参数需要指定角色名称"
+                    return 1
+                fi
                 role="$2"
                 shift 2
                 ;;
             --namespace|--ns)
+                if [[ -z "$2" ]]; then
+                    echo "错误: --namespace 参数需要指定 namespace 名称"
+                    return 1
+                fi
                 namespace="$2"
                 shift 2
                 ;;
             --context)
+                if [[ -z "$2" ]]; then
+                    echo "错误: --context 参数需要指定实例名称"
+                    return 1
+                fi
                 context_instance="$2"
                 shift 2
                 ;;
@@ -170,15 +186,36 @@ parse_start_args() {
                 force="true"
                 shift
                 ;;
-            -*)
-                echo "未知参数: $1"
-                return 1
-                ;;
             *)
+                # 检查是否是以 - 开头的无效选项
+                if [[ "$1" == -* ]]; then
+                    echo "错误: 未知选项 '$1'"
+                    echo ""
+                    echo "用法: cliExtra start [path] [选项]"
+                    echo ""
+                    echo "选项:"
+                    echo "  --name <name>         指定实例名称"
+                    echo "  --role <role>         应用角色预设"
+                    echo "  --namespace <ns>      指定 namespace"
+                    echo "  --ns <ns>             指定 namespace（简写）"
+                    echo "  --context <instance>  从指定实例加载历史上下文"
+                    echo "  -f, --force           强制启动（重启已存在的实例）"
+                    echo ""
+                    echo "示例:"
+                    echo "  cliExtra start                        # 在当前目录启动"
+                    echo "  cliExtra start --name myproject       # 指定实例名"
+                    echo "  cliExtra start --role frontend        # 应用前端角色"
+                    echo "  cliExtra start --ns q_cli             # 指定 namespace"
+                    echo "  cliExtra start -f                     # 强制启动"
+                    return 1
+                fi
+                
                 if [ -z "$project_path" ]; then
                     project_path="$1"
                 else
-                    echo "多余的参数: $1"
+                    echo "错误: 多余的参数 '$1'"
+                    echo ""
+                    echo "用法: cliExtra start [path] [选项]"
                     return 1
                 fi
                 shift
@@ -517,7 +554,7 @@ EOF
 # 解析启动参数
 args_result=$(parse_start_args "$@")
 if [ $? -ne 0 ]; then
-    echo "参数解析错误"
+    # parse_start_args 函数已经输出了详细的错误信息
     exit 1
 fi
 
