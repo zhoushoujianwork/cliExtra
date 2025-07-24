@@ -4,9 +4,29 @@
 
 ```bash
 qq help                    # 查看完整帮助信息
+qq init ./ [project_name]  # 分析项目并生成项目描述
 qq list                    # 查看所有实例
 qq list -o json            # JSON格式查看实例详情
 ```
+
+## 项目初始化
+
+```bash
+# 分析当前目录项目
+qq init ./
+
+# 分析项目并指定名称
+qq init ./ myproject
+
+# 分析指定目录
+qq init /path/to/project
+```
+
+**init 功能**：
+- 🔍 自动分析项目结构、技术栈、架构
+- 📝 生成 `.amazonq/rules/project.md` 项目描述文件
+- 🎯 推荐合适的开发人员(agent)角色配置
+- 🚀 提供启动命令示例和开发建议
 
 ## 协作核心功能
 
@@ -71,16 +91,19 @@ qq broadcast "前端组件更新完成" --namespace frontend
 # 1. 查看帮助
 qq help
 
-# 2. 查看当前协作环境
+# 2. 分析项目（推荐第一步）
+qq init ./ myproject
+
+# 3. 查看当前协作环境
 qq list -o json
 
-# 3. 查看工作流程配置
+# 4. 查看工作流程配置
 qq workflow show
 
-# 4. 查看角色实例映射状态
+# 5. 查看角色实例映射状态
 qq workflow-engine status
 
-# 5. 开始协作！
+# 6. 开始协作！
 # 完成任务时：
 qq workflow-engine complete backend_dev default "API开发完成"
 

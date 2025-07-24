@@ -13,6 +13,7 @@ show_help() {
     echo "=== cliExtra - 基于tmux的q CLI实例管理系统 ==="
     echo "用法:"
     echo "  $0 config                    - 配置全局设置"
+    echo "  $0 init <path> [name]        - 项目初始化和分析"
     echo "  $0 start [path] [--name <name>] - 启动实例"
     echo "  $0 resume <instance_id>      - 恢复已停止的实例，载入历史上下文"
     echo "  $0 send <instance_id> <msg>  - 发送消息到指定实例"
@@ -36,6 +37,8 @@ show_help() {
     echo "  $0 help                      - 显示此帮助"
     echo ""
     echo "启动示例:"
+    echo "  $0 init ./                   # 分析当前目录项目并生成项目描述"
+    echo "  $0 init ./ myproject         # 分析当前目录项目并指定项目名"
     echo "  $0 start                     # 在当前目录启动，自动生成实例ID (如: cliExtra_myproject_1234567890_1234)"
     echo "  $0 start ../                 # 在上级目录启动，自动生成实例ID (如: cliExtra_parentdir_1234567890_5678)"
     echo "  $0 start /path/to/project    # 在指定目录启动，自动生成实例ID (如: cliExtra_project_1234567890_9012)"
@@ -91,6 +94,9 @@ show_help() {
 case "${1:-}" in
     "config")
         "$SCRIPT_DIR/bin/cliExtra-config.sh" "${@:2}"
+        ;;
+    "init")
+        "$SCRIPT_DIR/bin/cliExtra-init.sh" "${@:2}"
         ;;
     "start")
         "$SCRIPT_DIR/bin/cliExtra-start.sh" "${@:2}"
