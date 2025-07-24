@@ -307,6 +307,16 @@ send_message_to_instance() {
     
     echo "✓ 消息已发送到实例 $instance_id: $message"
     
+    # 自动设置接收实例状态为 busy
+    local namespace=$(get_instance_namespace "$instance_id")
+    if [[ -z "$namespace" ]]; then
+        namespace="$CLIEXTRA_DEFAULT_NS"
+    fi
+    
+    if auto_set_busy_on_message "$instance_id" "$message" "$namespace"; then
+        echo "✓ 实例状态已自动设置为忙碌"
+    fi
+    
     # 记录对话
     record_conversation "$instance_id" "$message" "external" "$timestamp"
     

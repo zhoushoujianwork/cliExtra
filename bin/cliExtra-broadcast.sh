@@ -386,6 +386,13 @@ broadcast_message() {
         echo "✓ 记录广播消息到对话文件..."
         record_broadcast_to_conversations "$successful_instances" "$message" "$timestamp"
         
+        # 自动设置接收实例状态为 busy
+        if [[ "$dry_run" != "true" ]]; then
+            echo "✓ 自动更新接收实例状态..."
+            local instances_array=($successful_instances)
+            auto_set_busy_on_broadcast "$message" "${instances_array[@]}"
+        fi
+        
         # 按namespace分组记录到缓存
         local namespace_cache=""
         for instance in $successful_instances; do

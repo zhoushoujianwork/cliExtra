@@ -215,3 +215,84 @@ validate_status() {
             ;;
     esac
 }
+
+# 消息接收时自动设置实例状态为 busy
+auto_set_busy_on_message() {
+    local instance_id="$1"
+    local message="$2"
+    local namespace="${3:-$CLIEXTRA_DEFAULT_NS}"
+    
+    if [[ -z "$instance_id" || -z "$message" ]]; then
+        echo "错误: 实例ID和消息内容不能为空" >&2
+        return 1
+    fi
+    
+    # 截取消息前50个字符作为任务描述
+    local task_desc="处理消息: "
+    if [[ ${#message} -gt 50 ]]; then
+        task_desc="${task_desc}${message:0:50}..."
+    else
+        task_desc="${task_desc}${message}"
+    fi
+    
+    # 更新状态为 busy
+    update_status_file "$instance_id" "$STATUS_BUSY" "$task_desc" "$namespace"
+    
+    if [[ $? -eq 0 ]]; then
+        return 0
+    else
+        echo "警告: 无法更新实例 $instance_id 的状态" >&2
+        return 1
+    fi
+}
+
+# 批量设置多个实例状态为 busy（用于广播）
+auto_set_busy_on_broadcast() {
+    local message="$1"
+    shift
+    local instances=("$@")
+    
+    if [[ -z "$message" ]]; then
+        echo "错误: 消息内容不能为空" >&2
+        return 1
+    fi
+    
+    if [[ ${#instances[@]} -eq 0 ]]; then
+        echo "错误: 实例列表不能为空" >&2
+        return 1
+    fi
+    
+    # 截取消息前50个字符作为任务描述
+    local task_desc="处理广播: "
+    if [[ ${#message} -gt 50 ]]; then
+        task_desc="${task_desc}${message:0:50}..."
+    else
+        task_desc="${task_desc}${message}"
+    fi
+    
+    local success_count=0
+    local total_count=${#instances[@]}
+    
+    for instance_id in "${instances[@]}"; do
+        # 获取实例的namespace
+        local namespace=$(get_instance_namespace "$instance_id")
+        if [[ -z "$namespace" ]]; then
+            namespace="$CLIEXTRA_DEFAULT_NS"
+        fi
+        
+        # 更新状态为 busy
+        if update_status_file "$instance_id" "$STATUS_BUSY" "$task_desc" "$namespace"; then
+            success_count=$((success_count + 1))
+        else
+            echo "警告: 无法更新实例 $instance_id 的状态" >&2
+        fi
+    done
+    
+    if [[ $success_count -gt 0 ]]; then
+        echo "✓ 已将 $success_count/$total_count 个实例状态设置为忙碌"
+        return 0
+    else
+        echo "错误: 无法更新任何实例的状态" >&2
+        return 1
+    fi
+}
