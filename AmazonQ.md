@@ -1,5 +1,106 @@
 每次功能完成后记得更新 readme.md 文件；
 
+## 2025-07-24 异常 Namespace 创建问题修复
+
+### 🐛 问题发现
+用户报告系统创建了大量异常的 namespace，这些 namespace 名称都是中文消息内容，如：
+- "小程序是否支持使用手机蓝牙连接外部设备进行数据交互"
+- "任务已完成"
+- "消息处理完成"
+- "状态管理测试消息 - 验证修复效果"
+
+### 🔍 根本原因分析
+通过代码分析发现问题出现在 `cliExtra-start.sh` 中调用 `create_status_file` 函数时：
+
+**错误的调用方式**:
+```bash
+create_status_file "$instance_id" "$STATUS_IDLE" "$initial_task" "$namespace"
+```
+
+**函数期望的参数**:
+```bash
+create_status_file(instance_id, status, namespace)
+```
+
+**实际传递的参数**:
+1. `instance_id` ✅
+2. `STATUS_IDLE` ✅  
+3. `initial_task` ❌ (被当作 namespace)
+4. `namespace` ❌ (被忽略)
+
+导致 `initial_task` 变量的值（如中文消息）被当作 namespace 名称，系统自动创建了这些异常目录。
+
+### 🛠️ 解决方案
+
+#### 1. 修复参数传递错误
+```bash
+# 修复前
+create_status_file "$instance_id" "$STATUS_IDLE" "$initial_task" "$namespace"
+
+# 修复后  
+create_status_file "$instance_id" "$STATUS_IDLE" "$namespace"
+```
+
+#### 2. 加强 Namespace 名称验证
+在 `create_status_file` 函数中添加严格的验证：
+- **字符验证**: 只允许 `[a-zA-Z0-9_-]`
+- **长度验证**: 不超过 32 个字符
+- **自动回退**: 无效名称自动使用默认 namespace
+
+#### 3. 增强 Namespace 创建验证
+在 `cliExtra-ns.sh` 中加强验证：
+- 多重字符检查
+- 长度限制检查
+- 清晰的错误提示
+
+#### 4. 新增清理工具
+创建 `cliExtra-cleanup-invalid-ns.sh` 脚本：
+- **预览模式**: `--dry-run` 查看将要清理的目录
+- **强制清理**: `--force` 直接删除无效目录
+- **智能识别**: 自动识别包含无效字符的 namespace
+
+### 🧪 测试验证
+- ✅ 修复参数传递错误，状态文件创建正常
+- ✅ 中文 namespace 名称被正确拒绝并回退到默认值
+- ✅ 过长 namespace 名称被正确拒绝
+- ✅ 清理工具能正确识别和清理异常目录
+- ✅ 系统不再创建异常 namespace
+
+### 💡 用户价值
+- **系统稳定性**: 防止异常 namespace 的创建
+- **目录整洁**: 保持系统目录结构的整洁
+- **问题修复**: 提供工具清理已有的异常目录
+- **健壮性**: 增强系统对无效输入的处理能力
+
+### 📋 使用方法
+```bash
+# 预览将要清理的异常 namespace
+qq cleanup-invalid-ns --dry-run
+
+# 强制清理所有异常 namespace
+qq cleanup-invalid-ns --force
+
+# 查看清理后的状态
+qq ns show
+```
+
+### 🔧 技术实现
+1. **参数修复**: 移除多余的 `initial_task` 参数传递
+2. **验证增强**: 使用正则表达式 `^[a-zA-Z0-9_-]+$` 验证名称
+3. **长度限制**: 限制 namespace 名称不超过 32 字符
+4. **错误处理**: 无效名称自动回退到 `default` namespace
+5. **清理工具**: 提供安全的批量清理功能
+
+### 📊 影响范围
+- **修复文件**: 
+  - `bin/cliExtra-start.sh` - 修复参数传递
+  - `bin/cliExtra-status-manager.sh` - 加强验证
+  - `bin/cliExtra-ns.sh` - 增强创建验证
+  - `cliExtra.sh` - 添加清理命令
+- **新增文件**: 
+  - `bin/cliExtra-cleanup-invalid-ns.sh` - 清理工具
+- **用户体验**: 系统更加稳定，目录结构更加整洁
+
 ## 2025-07-24 实例状态管理机制实现
 
 ### 🔧 新功能：实例状态管理系统
