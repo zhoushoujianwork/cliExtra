@@ -18,24 +18,29 @@ show_help() {
     echo "  project_name    项目名称（可选，默认使用目录名）"
     echo ""
     echo "选项:"
-    echo "  --verbose, -v   显示详细的分析过程和实时输出"
-    echo "  --quiet, -q     静默模式，只显示关键信息"
-    echo "  --force, -f     强制覆盖现有文件，不显示确认提示"
+    echo "  -n, --namespace <ns>  指定使用的 namespace (默认: default)"
+    echo "  --verbose, -v         显示详细的分析过程和实时输出"
+    echo "  --quiet, -q           静默模式，只显示关键信息"
+    echo "  --force, -f           强制覆盖现有文件，不显示确认提示"
     echo ""
     echo "功能:"
-    echo "  - 启动临时分析实例"
+    echo "  - 使用指定 namespace 的 system 实例进行分析"
     echo "  - 自动分析项目结构、技术栈、架构"
-    echo "  - 生成或更新项目根目录的 README.md 文件"
+    echo "  - 生成详细的 .amazonq/rules/project.md 项目描述文件"
     echo "  - 建议合适的开发人员(agent)配置"
     echo ""
+    echo "System 实例说明:"
+    echo "  每个 namespace 都有一个 system 实例 ({namespace}-system)"
+    echo "  如果 system 实例不存在，会自动创建和修复"
+    echo ""
     echo "示例:"
-    echo "  $0 ./                    # 分析当前目录项目"
-    echo "  $0 ./ myproject          # 分析当前目录并指定项目名"
-    echo "  $0 /path/to/project      # 分析指定目录项目"
-    echo "  $0 ./ myproject --verbose # 显示详细分析过程"
-    echo "  $0 ./ myproject --force  # 强制覆盖现有文件"
-    echo "  $0 ./ myproject --quiet --force  # 静默强制覆盖"
-    echo "  $0 ./ myproject -v -f    # 详细模式 + 强制覆盖"
+    echo "  $0 ./                           # 使用 default namespace 分析当前目录"
+    echo "  $0 ./ myproject                 # 分析当前目录并指定项目名"
+    echo "  $0 ./ -n frontend               # 使用 frontend namespace 分析"
+    echo "  $0 /path/to/project --namespace backend  # 使用 backend namespace"
+    echo "  $0 ./ myproject --verbose       # 显示详细分析过程"
+    echo "  $0 ./ myproject --force         # 强制覆盖现有文件"
+    echo "  $0 ./ -n frontend -v -f         # 组合使用多个选项"
     echo ""
 }
 
@@ -45,66 +50,82 @@ generate_analysis_prompt() {
     local project_name="$2"
     
     cat << EOF
-请分析这个项目并生成详细的 README.md 文件。
+请分析这个项目并生成详细的项目描述文件。
 
 ## 分析要求
 
-请基于项目目录结构和文件内容，生成一个完整的项目 README.md 文件，保存为项目根目录的 \`README.md\` 文件。
+请基于项目目录结构和文件内容，生成一个完整的项目描述文件，保存为 \`.amazonq/rules/project.md\` 文件。
 
 ## 分析内容
 
-### 1. 项目基本信息
-- 项目名称：$project_name
-- 项目类型（Web应用、移动应用、库/框架、工具等）
-- 项目描述和主要功能
+### 1. 项目概述
+- **项目名称**: $project_name
+- **项目类型**: Web应用、移动应用、库/框架、工具等
+- **主要功能**: 项目的核心功能和用途
 
-### 2. 技术栈分析
-- **开发语言**：主要编程语言和版本
-- **框架和库**：使用的主要框架、库及版本
-- **构建工具**：构建系统、包管理器
-- **数据库**：数据库类型和ORM
-- **其他技术**：缓存、消息队列、容器化等
+### 2. 技术栈
+- **开发语言**: 主要编程语言和版本
+- **框架和库**: 使用的主要框架、库及版本
+- **构建工具**: 构建系统、包管理器、自动化工具
+- **数据库**: 数据库类型和ORM（如果有）
+- **其他技术**: 缓存、消息队列、容器化等
 
 ### 3. 项目架构
-- **架构模式**：MVC、微服务、单体应用等
-- **目录结构**：主要目录和文件组织方式
-- **模块划分**：核心模块和功能模块
-- **依赖关系**：模块间依赖和外部依赖
+- **架构模式**: MVC、微服务、单体应用、组件化等
+- **目录结构**: 主要目录和文件组织方式
+- **核心模块**: 主要功能模块和组件
+- **依赖关系**: 模块间依赖和外部依赖
 
-### 4. 开发环境和工具
-- **开发环境**：所需的开发环境配置
-- **调试工具**：调试和测试工具
-- **部署方式**：部署流程和环境要求
+### 4. 开发环境
+- **环境要求**: 操作系统、运行时版本等
+- **开发工具**: 推荐的IDE、编辑器、调试工具
+- **构建和部署**: 构建流程、测试方法、部署方式
 
-### 5. 建议的开发人员配置
+## 建议的开发人员配置
 
-基于项目复杂度和技术栈，建议以下角色配置：
+基于项目技术栈和复杂度，分析并推荐合适的开发角色：
 
-#### 推荐角色组合
-- **主要角色**：根据项目特点推荐1-2个核心角色
-- **辅助角色**：可选的支持角色
-- **协作方式**：角色间的协作建议
+### 推荐角色
+- **主要角色**: 根据项目特点推荐1-2个核心角色
+- **辅助角色**: 可选的支持角色
+- **协作建议**: 角色间的协作方式
 
-#### 具体建议
-- 如果是前端项目 → 推荐 frontend 角色
-- 如果是后端API → 推荐 backend 角色  
-- 如果是全栈项目 → 推荐 fullstack 角色
-- 如果涉及部署 → 推荐 devops 角色
-- 如果需要测试 → 推荐 test 角色
+### 角色选择指南
+- 前端项目 → frontend-engineer
+- 后端API → backend-engineer  
+- 全栈项目 → fullstack-engineer
+- Python项目 → python-engineer
+- Go项目 → golang-engineer
+- Vue项目 → vue-engineer
+- Shell脚本 → shell-engineer
+- 部署运维 → devops-engineer
+- 测试相关 → test-engineer
+
+### 启动命令示例
+提供具体的启动命令，例如：
+\`\`\`bash
+# 启动推荐的开发实例
+qq start --role frontend-engineer --name myproject-dev
+
+# 如果需要多角色协作
+qq start --role backend-engineer --name api-dev
+qq start --role frontend-engineer --name ui-dev
+\`\`\`
 
 ## 输出格式
 
-请直接创建或更新项目根目录的 \`README.md\` 文件，内容格式如下：
+请直接创建或更新项目的 \`.amazonq/rules/project.md\` 文件，内容格式如下：
 
 \`\`\`markdown
-# $project_name
+# $project_name 项目分析
 
-## 项目简介
-[项目基本信息和主要功能描述]
+## 项目概述
 
-## 功能特点
-- [核心功能列表]
-- [主要特性]
+**项目名称**: $project_name  
+**项目类型**: [项目类型]  
+**主要功能**: [项目核心功能描述]
+
+[项目的详细描述和背景]
 
 ## 技术栈
 
@@ -130,85 +151,135 @@ generate_analysis_prompt() {
 ### 核心模块
 [主要模块和功能说明]
 
-## 安装和使用
+## 开发环境
 
 ### 环境要求
 - [运行环境要求]
 - [依赖软件版本]
 
-### 安装步骤
-\\\`\\\`\\\`bash
-# 安装命令示例
-[具体安装步骤]
-\\\`\\\`\\\`
+### 开发工具
+- [推荐的IDE和编辑器]
+- [调试和测试工具]
 
-### 使用方法
-\\\`\\\`\\\`bash
-# 基本使用示例
-[使用命令和示例]
-\\\`\\\`\\\`
-
-## 开发指南
-
-### 开发环境搭建
-[开发环境配置说明]
-
-### 推荐开发工具
-[建议使用的开发工具和IDE]
-
-### 代码规范
-[代码风格和规范要求]
+### 构建和部署
+- [构建流程说明]
+- [部署方式和要求]
 
 ## 建议的开发人员配置
 
-基于项目特点，推荐以下 cliExtra 角色配置：
-
 ### 推荐角色
-- **主要角色**: [角色名] - [角色职责和适用场景]
-- **辅助角色**: [角色名] - [角色职责和适用场景]
+- **主要角色**: [推荐的核心角色]
+- **辅助角色**: [可选的支持角色]
 
-### 启动命令
+### 协作建议
+[角色间的协作方式和建议]
+
+### 启动命令示例
 \\\`\\\`\\\`bash
 # 启动推荐的开发实例
-qq start --role [推荐角色] --name $project_name-dev
+qq start --role [推荐角色] --name [实例名]
 
 # 如果需要多角色协作
-qq start --role [角色1] --name $project_name-[角色1]
-qq start --role [角色2] --name $project_name-[角色2]
+qq start --role [角色1] --name [实例名1]
+qq start --role [角色2] --name [实例名2]
 \\\`\\\`\\\`
 
 ## 项目特点
-[项目的独特性和技术亮点]
 
-## 贡献指南
-[如何参与项目开发]
+### 技术特点
+[项目的技术特色和亮点]
 
-## 许可证
-[项目许可证信息]
+### 开发注意事项
+[开发过程中需要注意的事项]
 
-## 更新日志
-[版本更新记录]
+### 扩展方向
+[项目的扩展可能性和发展方向]
 \`\`\`
+[项目的独特性和技术亮点]
 
 ## 执行步骤
 
-1. 首先分析项目目录结构
+1. 首先分析项目目录结构和文件内容
 2. 检查配置文件（package.json, requirements.txt, pom.xml等）
 3. 分析源代码文件和现有文档
-4. 如果存在现有的 README.md，先阅读其内容作为参考
-5. 生成或更新项目根目录的 README.md 文件
-6. 输出分析完成的确认信息
+4. 识别技术栈和架构模式
+5. 生成详细的项目描述文件
+6. 将内容保存到 .amazonq/rules/project.md
+7. 提供具体的角色推荐和启动命令
 
-**重要**: 完成分析后，请输出明确的完成信号：
-- 输出 "✅ 项目分析完成！"
-- 输出 "📄 README.md 文件已创建并保存"
-- 显示文件的保存路径
+## 完成确认
+
+完成分析后，请输出以下确认信息：
+- "✅ 项目分析完成！"
+- "📄 项目描述文件已创建: .amazonq/rules/project.md"
+- "🎯 推荐角色: [具体角色名称]"
+- 最后输出: "--- PROJECT_ANALYSIS_COMPLETE ---"
+- 输出 "📄 项目描述文件已创建: .amazonq/rules/project.md"
+- 输出 "🎯 推荐角色: [具体角色名称]"
+- 最后输出结束标记: "--- PROJECT_ANALYSIS_COMPLETE ---"
 
 请开始分析项目：$project_path
 EOF
 }
 
-# 等待实例启动完成
+# 检查 project.md 内容完整性
+check_readme_completeness() {
+    local project_md_file="$1"
+    local verbose_mode="$2"
+    
+    if [ ! -f "$project_md_file" ]; then
+        return 1
+    fi
+    
+    local file_size=$(wc -c < "$project_md_file" 2>/dev/null || echo "0")
+    if [ "$file_size" -lt 800 ]; then
+        if [ "$verbose_mode" = true ]; then
+            echo "🔍 项目描述文件过小 (${file_size} 字节)，可能未完成"
+        fi
+        return 1
+    fi
+    
+    # 检查必需的章节
+    local required_sections=(
+        "# "                    # 标题
+        "## 项目概述"
+        "## 技术栈"
+        "## 项目架构"
+        "## 建议的开发人员配置"
+    )
+    
+    local missing_sections=()
+    for section in "${required_sections[@]}"; do
+        if ! grep -q "$section" "$project_md_file"; then
+            missing_sections+=("$section")
+        fi
+    done
+    
+    if [ ${#missing_sections[@]} -gt 0 ]; then
+        if [ "$verbose_mode" = true ]; then
+            echo "🔍 项目描述文件缺少必需章节: ${missing_sections[*]}"
+        fi
+        return 1
+    fi
+    
+    # 检查是否有结束标记（表示生成完整）
+    if grep -q "## 项目特点" "$project_md_file" || grep -q "## 扩展方向" "$project_md_file" || grep -q "--- PROJECT_ANALYSIS_COMPLETE ---" "$project_md_file"; then
+        if [ "$verbose_mode" = true ]; then
+            echo "✅ 项目描述文件内容检测完整 (${file_size} 字节)"
+        fi
+        return 0
+    fi
+    
+    # 如果文件较大但没有结束标记，可能还在生成中
+    if [ "$file_size" -gt 3000 ]; then
+        if [ "$verbose_mode" = true ]; then
+            echo "⏳ README.md 内容较完整但可能仍在生成中 (${file_size} 字节)"
+        fi
+        return 2  # 返回2表示可能完成但不确定
+    fi
+    
+    return 1
+}
 wait_for_instance() {
     local instance_id="$1"
     local max_wait=30
@@ -278,11 +349,14 @@ monitor_analysis_progress() {
     local last_output=""
     local completion_indicators=(
         "项目分析完成"
-        "分析报告已生成"
-        "project.md 文件已创建"
-        "project.md 文件已保存"
+        "README.md 文件已创建"
+        "README.md 文件已保存"
+        "README.md 已生成"
+        "项目描述文件已创建"
         "✅ 项目分析完成"
-        "📄 project.md 文件已创建并保存"
+        "📄 项目描述文件已创建: .amazonq/rules/project.md"
+        "🎯 推荐角色:"
+        "--- PROJECT_ANALYSIS_COMPLETE ---"
     )
     
     local thinking_indicators=(
@@ -333,35 +407,68 @@ monitor_analysis_progress() {
                 fi
             done
             
-            # 只有在不是思考状态时才检查完成指示符
+            # 检查是否包含完成指示符
+            local is_thinking=false
+            local found_completion_signal=false
+            
+            for thinking in "${thinking_indicators[@]}"; do
+                if echo "$current_output" | grep -q "$thinking"; then
+                    is_thinking=true
+                    if [ "$verbose_mode" = true ] && [ "$quiet_mode" = false ]; then
+                        echo "🤔 AI正在思考中..."
+                    fi
+                    break
+                fi
+            done
+            
+            # 检查完成指示符
             if [ "$is_thinking" = false ]; then
                 for indicator in "${completion_indicators[@]}"; do
                     if echo "$current_output" | grep -q "$indicator"; then
+                        found_completion_signal=true
                         if [ "$verbose_mode" = true ] && [ "$quiet_mode" = false ]; then
                             echo "🎯 检测到完成指示符: $indicator"
                         fi
-                        break 2
+                        break
                     fi
                 done
             fi
             
-            # 检查文件是否已生成且内容完整
+            # 智能检测 README.md 完整性
             if [ -f "$project_md_file" ]; then
-                local file_size=$(wc -c < "$project_md_file" 2>/dev/null || echo "0")
-                if [ "$file_size" -gt 1000 ]; then  # 文件大小超过1KB，认为内容比较完整
-                    # 检查文件是否包含关键部分
-                    if grep -q "## 项目概述" "$project_md_file" && \
-                       grep -q "## 技术栈" "$project_md_file" && \
-                       grep -q "## 建议的开发人员配置" "$project_md_file"; then
+                check_readme_completeness "$project_md_file" "$verbose_mode"
+                local completeness_status=$?
+                
+                case $completeness_status in
+                    0)  # 完全完成
                         if [ "$quiet_mode" = false ]; then
-                            echo "✅ 项目分析完成！"
-                            echo "📄 项目描述文件已生成: $project_md_file"
+                            local file_size=$(wc -c < "$project_md_file" 2>/dev/null || echo "0")
+                            echo "✅ README.md 生成完成！"
+                            echo "📄 文件路径: $project_md_file"
                             echo "📊 文件大小: ${file_size} 字节"
                         fi
                         rm -f "$temp_output"
                         return 0
-                    fi
-                fi
+                        ;;
+                    2)  # 可能完成，等待确认
+                        if [ "$found_completion_signal" = true ]; then
+                            if [ "$quiet_mode" = false ]; then
+                                local file_size=$(wc -c < "$project_md_file" 2>/dev/null || echo "0")
+                                echo "✅ README.md 生成完成！"
+                                echo "📄 文件路径: $project_md_file"
+                                echo "📊 文件大小: ${file_size} 字节"
+                            fi
+                            rm -f "$temp_output"
+                            return 0
+                        fi
+                        ;;
+                    1)  # 未完成，继续等待
+                        if [ "$verbose_mode" = true ] && [ "$quiet_mode" = false ]; then
+                            local current_size=$(wc -c < "$project_md_file" 2>/dev/null || echo "0")
+                            echo "📝 README.md 正在生成中... (${current_size} 字节)"
+                        fi
+                        ;;
+                esac
             fi
         else
             if [ "$quiet_mode" = false ]; then
@@ -373,12 +480,20 @@ monitor_analysis_progress() {
         sleep 3
         count=$((count + 3))
         
-        # 每30秒显示一次进度
-        if [ $((count % 30)) -eq 0 ] && [ "$quiet_mode" = false ]; then
-            echo "⏳ 分析进行中... (${count}s/${max_wait}s)"
+        # 每15秒显示一次进度（更频繁的反馈）
+        if [ $((count % 15)) -eq 0 ] && [ "$quiet_mode" = false ]; then
+            echo "⏳ README.md 生成进行中... (${count}s/${max_wait}s)"
             if [ -f "$project_md_file" ]; then
                 local current_size=$(wc -c < "$project_md_file" 2>/dev/null || echo "0")
                 echo "📝 当前文件大小: ${current_size} 字节"
+                
+                # 显示当前生成的章节
+                if [ "$current_size" -gt 100 ]; then
+                    local sections_found=()
+                    grep "^## " "$project_md_file" 2>/dev/null | head -3 | while read -r line; do
+                        echo "   ✓ $line"
+                    done
+                fi
             fi
         fi
     done
@@ -388,23 +503,45 @@ monitor_analysis_progress() {
     
     # 检查最终状态
     if [ -f "$project_md_file" ]; then
+        check_readme_completeness "$project_md_file" false
+        local final_status=$?
         local final_size=$(wc -c < "$project_md_file" 2>/dev/null || echo "0")
-        if [ "$final_size" -gt 500 ]; then
-            if [ "$quiet_mode" = false ]; then
-                echo "⚠️  分析可能已完成，但未检测到明确的完成信号"
-                echo "📄 项目描述文件: $project_md_file"
-                echo "📊 文件大小: ${final_size} 字节"
-                echo "💡 建议检查文件内容确认分析质量"
-            fi
-            return 0
-        else
-            echo "❌ 分析可能失败，生成的文件内容过少"
-            echo "📄 文件路径: $project_md_file"
-            echo "📊 文件大小: ${final_size} 字节"
-            return 1
-        fi
+        
+        case $final_status in
+            0)  # 完全完成
+                if [ "$quiet_mode" = false ]; then
+                    echo "✅ README.md 生成完成！"
+                    echo "📄 文件路径: $project_md_file"
+                    echo "📊 文件大小: ${final_size} 字节"
+                fi
+                return 0
+                ;;
+            2)  # 可能完成
+                if [ "$quiet_mode" = false ]; then
+                    echo "⚠️  README.md 可能已完成，但建议检查内容完整性"
+                    echo "📄 文件路径: $project_md_file"
+                    echo "📊 文件大小: ${final_size} 字节"
+                    echo "💡 建议检查文件内容确认生成质量"
+                fi
+                return 0
+                ;;
+            1)  # 未完成
+                if [ "$final_size" -gt 500 ]; then
+                    echo "⚠️  README.md 部分完成，但内容可能不完整"
+                    echo "📄 文件路径: $project_md_file"
+                    echo "📊 文件大小: ${final_size} 字节"
+                    echo "💡 建议重新运行或手动完善内容"
+                    return 1
+                else
+                    echo "❌ README.md 生成失败，文件内容过少"
+                    echo "📄 文件路径: $project_md_file"
+                    echo "📊 文件大小: ${final_size} 字节"
+                    return 1
+                fi
+                ;;
+        esac
     else
-        echo "❌ 分析超时或失败，未生成项目描述文件"
+        echo "❌ 生成超时或失败，未生成 README.md 文件"
         echo "💡 建议检查项目目录和AI实例状态"
         return 1
     fi
@@ -424,6 +561,7 @@ cleanup_temp_instance() {
 main() {
     local project_path=""
     local project_name=""
+    local namespace="default"
     local verbose_mode=false
     local quiet_mode=false
     local force_mode=false
@@ -431,6 +569,14 @@ main() {
     # 解析参数
     while [[ $# -gt 0 ]]; do
         case $1 in
+            -n|--namespace)
+                if [[ -z "$2" ]]; then
+                    echo "错误: --namespace 参数需要指定 namespace 名称"
+                    exit 1
+                fi
+                namespace="$2"
+                shift 2
+                ;;
             --verbose|-v)
                 verbose_mode=true
                 shift
@@ -492,8 +638,13 @@ main() {
         echo ""
     fi
     
-    # 检查是否已存在README.md文件
-    local project_md_file="$project_path/README.md"
+    # 检查是否已存在project.md文件
+    local project_md_file="$project_path/.amazonq/rules/project.md"
+    local project_md_dir="$(dirname "$project_md_file")"
+    
+    # 确保目录存在
+    mkdir -p "$project_md_dir"
+    
     if [ -f "$project_md_file" ]; then
         if [ "$force_mode" = true ]; then
             if [ "$quiet_mode" = false ]; then
@@ -511,22 +662,30 @@ main() {
         fi
     fi
     
-    # 生成临时实例ID
-    local temp_instance_id="project_analyzer_$(date +%s)_$$"
+    # 确定使用的 system 实例
+    local system_instance_id="${namespace}-system"
     
-    echo "🔧 启动临时分析实例: $temp_instance_id"
+    if [ "$quiet_mode" = false ]; then
+        echo "🔧 使用 namespace '$namespace' 的 system 实例: $system_instance_id"
+    fi
     
-    # 启动临时实例
-    "$SCRIPT_DIR/cliExtra-start.sh" "$project_path" --name "$temp_instance_id" --role fullstack >/dev/null 2>&1
+    # 检查并修复 system 实例
+    if [ "$quiet_mode" = false ]; then
+        echo "🔍 检查 system 实例状态..."
+    fi
     
-    if [ $? -ne 0 ]; then
-        echo "错误: 启动临时实例失败"
+    "$SCRIPT_DIR/cliExtra-ns.sh" show "$namespace" >/dev/null 2>&1
+    
+    # 验证 system 实例是否存在和运行
+    if ! "$SCRIPT_DIR/cliExtra-list.sh" "$system_instance_id" >/dev/null 2>&1; then
+        echo "错误: system 实例 $system_instance_id 不存在或无法访问"
+        echo "请先创建 namespace: qq ns create $namespace"
         exit 1
     fi
     
-    # 等待实例启动
-    if ! wait_for_instance "$temp_instance_id"; then
-        cleanup_temp_instance "$temp_instance_id"
+    # 等待实例准备就绪
+    if ! wait_for_instance "$system_instance_id"; then
+        echo "错误: system 实例未准备就绪"
         exit 1
     fi
     
@@ -534,7 +693,7 @@ main() {
     local analysis_prompt=$(generate_analysis_prompt "$project_path" "$project_name")
     
     # 发送分析请求
-    if send_analysis_request "$temp_instance_id" "$analysis_prompt" "$project_path" "$verbose_mode" "$quiet_mode"; then
+    if send_analysis_request "$system_instance_id" "$analysis_prompt" "$project_path" "$verbose_mode" "$quiet_mode"; then
         if [ "$quiet_mode" = false ]; then
             echo ""
             echo "🎉 项目初始化完成！"
@@ -547,16 +706,15 @@ main() {
             echo "   2. 根据建议启动合适的开发实例"
             echo "   3. 开始项目开发工作"
             echo ""
+            echo "🤖 System 实例信息:"
+            echo "   - 实例ID: $system_instance_id"
+            echo "   - Namespace: $namespace"
+            echo "   - 可以继续与此实例交互: qq send $system_instance_id \"消息内容\""
+            echo ""
         fi
     else
         echo "❌ 项目分析可能未完成，请检查实例状态"
-    fi
-    
-    # 清理临时实例
-    if [ "$quiet_mode" = false ]; then
-        cleanup_temp_instance "$temp_instance_id"
-    else
-        cleanup_temp_instance "$temp_instance_id" >/dev/null 2>&1
+        echo "💡 可以手动与 system 实例交互: qq send $system_instance_id \"请重新分析项目\""
     fi
 }
 

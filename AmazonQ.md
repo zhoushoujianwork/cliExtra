@@ -137,49 +137,51 @@ project/.cliExtra/roles/frontend-engineer.md
 - 清晰的状态提示和反馈
 - 稳定的会话持久化
 
-## 2025-07-24 Namespace System 实例功能
+## 2025-07-24 qq init 命令适配 Namespace System 实例
 
-### 设计理念
-为每个 namespace 配备一个标配的 system 级别协调实例，作为该 namespace 的协调中心和系统任务执行者。
-
-### 功能特点
-1. **自动创建**: `qq ns create xxx` 时自动创建 `{namespace}-system` 实例
-2. **自动修复**: `qq ns show xxx` 时检查并修复缺失的 system 实例
-3. **系统级权限**: 可以协调该 namespace 下的其他实例，执行系统级任务
-4. **专用角色**: 使用 `system-coordinator` 角色，专门负责系统协调
+### 功能改进
+- **移除临时实例**: 不再创建临时分析实例
+- **使用 System 实例**: 直接使用 namespace 的 system 实例执行初始化
+- **Namespace 参数**: 添加 `-n|--namespace` 参数支持
+- **输出优化**: 生成 `.amazonq/rules/project.md` 而不是 README.md
 
 ### 技术实现
-1. **System 实例规范**:
-   - 实例名称: `{namespace}-system`
-   - 工作目录: 系统目录下的 namespace 目录
-   - 角色: `system-coordinator`
-   - 用途: namespace 协调中心和系统任务执行
+1. **参数解析增强**:
+   - 添加 `-n|--namespace` 参数
+   - 默认使用 `default` namespace
+   - 支持指定任意 namespace
 
-2. **创建和修复机制**:
-   - `create_system_instance()`: 创建 system 实例
-   - `check_and_repair_system_instance()`: 检查和修复 system 实例
-   - 集成到 namespace 创建和显示流程中
+2. **System 实例集成**:
+   - 自动检查并修复 system 实例
+   - 使用 `{namespace}-system` 实例执行分析
+   - 无需创建和清理临时实例
 
-3. **System Coordinator 角色**:
-   - 专门的角色定义文件 `system-coordinator.md`
-   - 具备项目初始化、实例协调、系统任务执行能力
-   - 可以替代临时 agent，执行 `qq init` 等系统任务
+3. **输出格式调整**:
+   - 生成项目描述文件到 `.amazonq/rules/project.md`
+   - 修改完成标记为 `PROJECT_ANALYSIS_COMPLETE`
+   - 优化 macOS grep 兼容性
 
-### 使用场景
-1. **项目初始化**: 通过 system 实例执行项目分析和初始化
-2. **实例协调**: 协调 namespace 内其他实例的工作
-3. **系统任务**: 执行跨实例的系统级任务
-4. **状态监控**: 监控 namespace 内实例状态和健康度
+### 使用示例
+```bash
+# 使用默认 namespace
+qq init ./
+
+# 指定 namespace
+qq init ./ myproject -n frontend
+
+# 详细模式
+qq init ./ -n backend --verbose
+```
 
 ### 测试验证
-- ✅ namespace 创建时自动创建 system 实例
-- ✅ system 实例使用正确的角色和工作目录
-- ✅ 检查和修复功能正常工作
-- ✅ system 实例可以正常接收和处理消息
-- ✅ 删除 namespace 时正确清理 system 实例
+- ✅ namespace 参数解析正常
+- ✅ system 实例自动检查和修复
+- ✅ 项目分析功能正常
+- ✅ 项目描述文件生成成功
+- ✅ macOS 兼容性修复
 
 ### 用户价值
-- **简化操作**: 不再需要手动创建临时 agent
-- **统一管理**: 每个 namespace 都有标准的协调实例
-- **自动修复**: 系统自动检查和修复缺失的 system 实例
-- **角色专业**: 专门的 system-coordinator 角色提供更好的系统服务
+- **简化流程**: 不再需要管理临时实例
+- **统一架构**: 与 namespace system 实例完美集成
+- **灵活配置**: 支持多 namespace 项目初始化
+- **持续交互**: 可以继续与 system 实例交互
