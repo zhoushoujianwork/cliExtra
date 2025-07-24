@@ -8,6 +8,52 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-config.sh"
 
 # =============================================================================
+# 实例名称验证函数
+# =============================================================================
+
+# 验证实例名称格式
+validate_instance_name() {
+    local instance_name="$1"
+    
+    # 检查是否为空
+    if [ -z "$instance_name" ]; then
+        echo "错误: 实例名称不能为空"
+        return 1
+    fi
+    
+    # 检查长度限制（64个字符）
+    if [ ${#instance_name} -gt 64 ]; then
+        echo "错误: 实例名称长度不能超过64个字符，当前长度: ${#instance_name}"
+        echo "当前名称: $instance_name"
+        return 1
+    fi
+    
+    # 检查字符规则：只允许英文字母、数字、下划线和中划线
+    if [[ ! "$instance_name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "错误: 实例名称只能包含英文字母、数字、下划线(_)和中划线(-)"
+        echo "不允许包含空格、中文字符或其他特殊字符"
+        echo "当前名称: $instance_name"
+        return 1
+    fi
+    
+    # 检查不能以中划线开头或结尾（避免命令行解析问题）
+    if [[ "$instance_name" =~ ^- ]] || [[ "$instance_name" =~ -$ ]]; then
+        echo "错误: 实例名称不能以中划线开头或结尾"
+        echo "当前名称: $instance_name"
+        return 1
+    fi
+    
+    # 检查不能全部是数字（避免与PID混淆）
+    if [[ "$instance_name" =~ ^[0-9]+$ ]]; then
+        echo "错误: 实例名称不能全部是数字"
+        echo "当前名称: $instance_name"
+        return 1
+    fi
+    
+    return 0
+}
+
+# =============================================================================
 # 实例查找和管理函数
 # =============================================================================
 

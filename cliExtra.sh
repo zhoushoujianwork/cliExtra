@@ -37,6 +37,13 @@ show_help() {
     echo "  $0 replay <command>          - 对话回放"
     echo "  $0 help                      - 显示此帮助"
     echo ""
+    echo "实例名称规则:"
+    echo "  - 只能包含英文字母、数字、下划线(_)和中划线(-)"
+    echo "  - 长度不能超过64个字符"
+    echo "  - 不能以中划线开头或结尾"
+    echo "  - 不能全部是数字"
+    echo "  - 不允许包含空格、中文字符或其他特殊字符"
+    echo ""
     echo "启动示例:"
     echo "  $0 init ./                   # 使用 default namespace 分析当前目录项目"
     echo "  $0 init ./ myproject         # 分析当前目录项目并指定项目名"
@@ -116,6 +123,11 @@ case "${1:-}" in
     "resume")
         if [ -z "$2" ]; then
             echo "用法: $0 resume <instance_id>"
+            exit 1
+        fi
+        # 验证实例名称格式
+        source "$SCRIPT_DIR/bin/cliExtra-common.sh"
+        if ! validate_instance_name "$2"; then
             exit 1
         fi
         "$SCRIPT_DIR/bin/cliExtra-start.sh" --context "${@:2}"

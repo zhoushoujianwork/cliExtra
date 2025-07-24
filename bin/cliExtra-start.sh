@@ -155,6 +155,10 @@ parse_start_args() {
                     echo "错误: --name 参数需要指定实例名称"
                     return 1
                 fi
+                # 验证实例名称格式
+                if ! validate_instance_name "$2"; then
+                    return 1
+                fi
                 instance_name="$2"
                 shift 2
                 ;;
@@ -236,6 +240,12 @@ parse_start_args() {
     if [ -z "$instance_name" ]; then
         instance_name=$(generate_instance_id "$project_path")
         echo "自动生成实例ID: $instance_name" >&2
+        
+        # 验证生成的实例名称（防止生成的名称不符合规范）
+        if ! validate_instance_name "$instance_name"; then
+            echo "错误: 自动生成的实例名称不符合规范，请使用 --name 参数手动指定"
+            return 1
+        fi
     fi
     
     echo "$instance_name|$project_path|$role|$namespace|$context_instance|$force"
