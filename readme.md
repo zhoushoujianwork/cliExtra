@@ -42,6 +42,7 @@ cliExtra 是一个基于 shell 快速实现的 AWS AI 终端 Q 的多终端交�
 - **实例协作**: 支持实例间协作通信和广播通知
 - **单个实例清理**: 支持停止和清理单个实例
 - **Namespace管理**: 支持类似k8s namespace的概念，实例归属管理
+- **智能默认行为**: 命令默认操作 default namespace，使用 -A/--all 显示所有 namespace
 - **角色预设管理**: 支持前端、后端、测试、代码审查、运维等角色预设
 
 - **跨项目协作**: 不同项目的实例可以在同一namespace中协作
@@ -112,6 +113,9 @@ qq init ./
 # 分析当前目录项目并指定项目名
 qq init ./ myproject
 
+# 使用指定 namespace 的 system 实例分析
+qq init ./ myproject -n frontend
+
 # 分析指定目录项目
 qq init /path/to/project
 
@@ -124,6 +128,7 @@ qq init https://github.com/user/repo.git
 - 📝 **生成文档**: 创建详细的 `.amazonq/rules/project.md` 项目描述文件
 - 🎯 **角色建议**: 基于项目特点推荐合适的开发人员(agent)配置
 - 🚀 **快速上手**: 提供启动命令示例和开发建议
+- 🤖 **System 实例**: 使用 namespace 的 system 实例执行分析，无需临时实例
 
 ### 启动实例
 
@@ -143,14 +148,55 @@ qq start --role frontend    # 启动并应用前端工程师角色
 qq start --name backend --role backend  # 启动并应用后端工程师角色
 ```
 
+### 实例状态管理
+
+```bash
+# 查看实例状态
+qq status                           # 显示 default namespace 所有实例状态
+qq status myinstance                # 查看指定实例状态
+qq status -A                        # 显示所有 namespace 实例状态
+qq status -n frontend               # 显示 frontend namespace 实例状态
+qq status -o json                   # JSON格式输出
+
+# 设置实例状态
+qq status myinstance --set busy     # 设置实例为忙碌状态
+qq status myinstance --set busy --task "处理用户请求"  # 设置状态和任务描述
+qq status myinstance --set idle     # 设置实例为空闲状态
+qq status myinstance --set waiting  # 设置实例为等待状态
+qq status myinstance --set error    # 设置实例为错误状态
+
+# 清理过期状态文件
+qq status --cleanup                 # 清理过期状态文件 (默认30分钟)
+qq status --cleanup --timeout 60    # 清理60分钟无活动的状态文件
+```
+
+**状态值说明**:
+- `idle` - 空闲，可接收新任务
+- `busy` - 忙碌，正在处理任务
+- `waiting` - 等待用户输入或外部响应
+- `error` - 错误状态，需要人工干预
+
+**状态文件位置**: `~/Library/Application Support/cliExtra/namespaces/<namespace>/status/<instance_id>.status`
+
 ### 实例管理
 
 ```bash
-# 列出所有实例（简洁格式，每行一个实例ID）
+# 列出默认namespace的实例（简洁格式，每行一个实例ID）
 qq list
 
-# 列出所有实例（JSON格式，包含详细信息和namespace）
+# 列出所有namespace的实例（使用 -A 或 --all 参数）
+qq list -A
+qq list --all
+
+# 列出指定namespace的实例
+qq list --namespace frontend
+qq list -n backend
+
+# 列出默认namespace的实例（JSON格式，包含详细信息）
 qq list -o json
+
+# 列出所有namespace的实例（JSON格式）
+qq list -A -o json
 
 # 显示指定实例的详细信息（包含namespace）
 qq list myinstance
@@ -237,6 +283,16 @@ qq role remove myproject
 
 ### Namespace管理
 
+#### 默认行为说明
+
+**重要**: 为了避免信息过载，所有支持 namespace 的命令都采用智能默认行为：
+
+- **默认显示**: 只显示 `default` namespace 中的内容
+- **显示所有**: 使用 `-A` 或 `--all` 参数显示所有 namespace 的内容
+- **指定显示**: 使用 `-n` 或 `--namespace` 参数显示特定 namespace 的内容
+
+#### Namespace 基本操作
+
 ```bash
 # 创建namespace
 qq ns create frontend
@@ -258,6 +314,25 @@ qq start --name api --ns backend
 
 # 修改实例的namespace
 qq set-ns myinstance backend  # 将实例移动到backend namespace
+```
+
+#### 智能默认行为示例
+
+```bash
+# 实例管理 - 默认只显示 default namespace
+qq list                       # 只显示 default namespace 的实例
+qq list -A                    # 显示所有 namespace 的实例
+qq list -n frontend           # 只显示 frontend namespace 的实例
+
+# 广播通信 - 默认只广播给 default namespace
+qq broadcast "系统维护通知"    # 只广播给 default namespace
+qq broadcast "系统更新" -A     # 广播给所有 namespace
+qq broadcast "前端更新" -n frontend  # 只广播给 frontend namespace
+
+# 批量清理 - 默认只清理 default namespace
+qq clean all                  # 只清理 default namespace 的实例
+qq clean all -A               # 清理所有 namespace 的实例
+qq clean all -n backend       # 只清理 backend namespace 的实例
 ```
 
 ### 工具管理
@@ -317,8 +392,12 @@ qq replay namespace development --since "2025-01-20"
 # 发送消息到指定实例
 qq send backend-api "API开发完成，请进行前端集成"
 
-# 广播消息到所有实例
+# 广播消息到默认namespace的所有实例
 qq broadcast "系统维护通知：今晚22:00-24:00进行系统升级"
+
+# 广播消息到所有namespace的实例
+qq broadcast "全系统更新通知" -A
+qq broadcast "全系统更新通知" --all
 
 # 广播到指定namespace
 qq broadcast "前端组件库更新" --namespace frontend
@@ -494,6 +573,14 @@ sudo ln -sf /path/to/cliExtra/cliExtra.sh /usr/local/bin/qq
 - **Bash**: 脚本执行
 
 ## 更新日志
+
+### 2025-07-24
+- **新增**: Namespace 默认行为优化
+  - `qq list` 等命令默认只显示 default namespace 的内容
+  - 添加 `-A` 或 `--all` 参数显示所有 namespace 的内容
+  - `qq broadcast` 默认只广播给 default namespace，使用 `-A` 广播给所有
+  - 统一所有支持 namespace 的命令行为，避免信息过载
+  - 更新文档说明新的默认行为和参数使用方法
 
 ### 2025-07-23
 - **修复**: 修复了 `qq ns show -o json` 命令的显示问题

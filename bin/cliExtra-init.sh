@@ -30,7 +30,7 @@ show_help() {
     echo "  - 建议合适的开发人员(agent)配置"
     echo ""
     echo "System 实例说明:"
-    echo "  每个 namespace 都有一个 system 实例 ({namespace}-system)"
+    echo "  每个 namespace 都有一个 system 实例 ({namespace}_system)"
     echo "  如果 system 实例不存在，会自动创建和修复"
     echo ""
     echo "示例:"
@@ -663,7 +663,7 @@ main() {
     fi
     
     # 确定使用的 system 实例
-    local system_instance_id="${namespace}-system"
+    local system_instance_id="${namespace}_system"
     
     if [ "$quiet_mode" = false ]; then
         echo "🔧 使用 namespace '$namespace' 的 system 实例: $system_instance_id"

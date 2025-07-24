@@ -1,12 +1,68 @@
 # cliExtra (qq) 快速使用指南
 
+
+**注意**：协作的时候注意 namespace 必须要有，注意自己的工作边界
+
+## 实例状态管理机制
+
+### 状态标记文件设计
+每个实例都有对应的状态标记文件，类似 PID 文件的概念：
+
+```bash
+# 状态文件位置
+~/Library/Application Support/cliExtra/namespaces/<namespace>/status/<instance_id>.status
+
+# 状态值定义
+idle     # 空闲状态，可以接收新任务
+busy     # 忙碌状态，正在处理任务
+waiting  # 等待状态，等待用户输入或外部响应
+error    # 错误状态，需要人工干预
+```
+
+### AI 实例状态管理规则
+作为 AI 实例，你需要在处理任务时主动管理自己的状态：
+
+1. **开始处理任务时**：
+   - 立即将状态设置为 `busy`
+   - 记录开始时间和任务描述
+
+2. **任务处理完成时**：
+   - 将状态设置为 `idle`
+   - 清理临时状态信息
+
+3. **等待用户输入时**：
+   - 将状态设置为 `waiting`
+   - 记录等待原因
+
+4. **遇到错误时**：
+   - 将状态设置为 `error`
+   - 记录错误信息
+
+### 状态文件格式
+```json
+{
+  "status": "busy",
+  "timestamp": "2025-07-24T10:00:00Z",
+  "task": "处理用户请求：优化界面布局",
+  "pid": "12345",
+  "last_activity": "2025-07-24T10:05:00Z"
+}
+```
+
+### 协作时的状态检查
+在发送协作消息前，应该检查目标实例的状态：
+- `idle`: 可以立即发送消息
+- `busy`: 建议等待或使用低优先级发送
+- `waiting`: 可以发送，但可能需要等待响应
+- `error`: 不建议发送任务消息，可发送帮助消息
+
 ## 基本命令
 
 ```bash
 qq help                    # 查看完整帮助信息
 qq init ./ [project_name]  # 分析项目并生成项目描述
-qq list                    # 查看所有实例
-qq list -o json            # JSON格式查看实例详情
+qq list --namespace [namespace]                   # 查看指定namespace的实例
+qq list --namespace [namespace] -o json            # JSON格式查看指定namespace的实例详情
 ```
 
 ## 项目初始化

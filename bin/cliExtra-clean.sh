@@ -143,6 +143,18 @@ clean_single_instance() {
             echo "✓ 删除对话记录: $conversation_file"
         fi
         
+        # 删除状态文件
+        if [ -f "$SCRIPT_DIR/cliExtra-status-manager.sh" ]; then
+            source "$SCRIPT_DIR/cliExtra-status-manager.sh"
+            local namespace=$(get_instance_namespace "$instance_id")
+            if [ -z "$namespace" ]; then
+                namespace="default"
+            fi
+            if remove_status_file "$instance_id" "$namespace"; then
+                echo "✓ 删除状态文件"
+            fi
+        fi
+        
         echo "✓ 实例 $instance_id 清理完成"
     else
         # 向后兼容：查找并清理项目目录中的实例文件

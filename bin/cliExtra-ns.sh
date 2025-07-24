@@ -22,7 +22,7 @@ show_help() {
     echo "  -o, --output <format>  输出格式：table（默认）或 json"
     echo ""
     echo "System实例说明:"
-    echo "  每个namespace都有一个标配的system实例 ({namespace}-system)"
+    echo "  每个namespace都有一个标配的system实例 ({namespace}_system)"
     echo "  - 角色: system-coordinator"
     echo "  - 工作目录: namespace系统目录"
     echo "  - 用途: 协调实例、执行系统任务、项目初始化"
@@ -38,7 +38,7 @@ show_help() {
 # 创建namespace的system实例
 create_system_instance() {
     local ns_name="$1"
-    local system_instance_name="${ns_name}-system"
+    local system_instance_name="${ns_name}_system"
     local ns_dir="$(get_namespace_dir "$ns_name")"
     
     echo "正在创建 system 实例: $system_instance_name"
@@ -64,7 +64,7 @@ create_system_instance() {
 # 检查并修复namespace的system实例
 check_and_repair_system_instance() {
     local ns_name="$1"
-    local system_instance_name="${ns_name}-system"
+    local system_instance_name="${ns_name}_system"
     
     # 检查 system 实例是否存在
     local instance_dir=$(find_instance_info_dir "$system_instance_name")
@@ -199,7 +199,7 @@ EOF
     echo "  - 目录位置: $ns_dir"
     echo "  - 配置文件: $ns_file"
     echo "  - 子目录: instances, logs, conversations"
-    echo "  - System 实例: ${ns_name}-system"
+    echo "  - System 实例: ${ns_name}_system"
 }
 
 # 删除namespace
@@ -437,6 +437,20 @@ get_all_namespaces() {
 show_all_namespaces() {
     local json_output="$1"
     local namespaces=($(get_all_namespaces))
+    
+    # 在显示前检查并修复所有 namespace 的 system 实例
+    if [[ "$json_output" != "--json" ]]; then
+        echo "检查所有 namespace 的 system 实例状态..."
+        for ns_name in "${namespaces[@]}"; do
+            check_and_repair_system_instance "$ns_name"
+        done
+        echo ""
+    else
+        # JSON 模式下静默修复所有 namespace
+        for ns_name in "${namespaces[@]}"; do
+            check_and_repair_system_instance "$ns_name" >/dev/null 2>&1
+        done
+    fi
     
     if [[ "$json_output" == "--json" ]]; then
         echo "{"

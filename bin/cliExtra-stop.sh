@@ -84,6 +84,18 @@ stop_tmux_instance() {
             tmux kill-session -t "$session_name"
         fi
         
+        # 清理实例状态文件
+        if [ -f "$SCRIPT_DIR/cliExtra-status-manager.sh" ]; then
+            source "$SCRIPT_DIR/cliExtra-status-manager.sh"
+            local namespace=$(get_instance_namespace "$instance_id")
+            if [ -z "$namespace" ]; then
+                namespace="default"
+            fi
+            if remove_status_file "$instance_id" "$namespace"; then
+                echo "✓ 状态文件已清理"
+            fi
+        fi
+        
         echo "✓ 实例 $instance_id 已停止"
     else
         echo "实例 $instance_id 未运行"

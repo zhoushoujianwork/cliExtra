@@ -105,6 +105,7 @@ CLIEXTRA_PROJECT_PATH_FILE="project_path"
 CLIEXTRA_INSTANCES_SUBDIR="instances"
 CLIEXTRA_LOGS_SUBDIR="logs"
 CLIEXTRA_CONVERSATIONS_SUBDIR="conversations"
+CLIEXTRA_STATUS_SUBDIR="status"
 
 # 实例文件名
 CLIEXTRA_INSTANCE_INFO_FILE="info"
@@ -170,6 +171,7 @@ init_directories() {
         "$CLIEXTRA_DEFAULT_NS_DIR/$CLIEXTRA_INSTANCES_SUBDIR"
         "$CLIEXTRA_DEFAULT_NS_DIR/$CLIEXTRA_LOGS_SUBDIR"
         "$CLIEXTRA_DEFAULT_NS_DIR/$CLIEXTRA_CONVERSATIONS_SUBDIR"
+        "$CLIEXTRA_DEFAULT_NS_DIR/$CLIEXTRA_STATUS_SUBDIR"
     )
     
     for dir in "${dirs[@]}"; do
@@ -208,6 +210,21 @@ get_instance_conversation_dir() {
     local namespace="${1:-$CLIEXTRA_DEFAULT_NS}"
     local ns_dir=$(get_namespace_dir "$namespace")
     echo "$ns_dir/$CLIEXTRA_CONVERSATIONS_SUBDIR"
+}
+
+# 获取实例状态目录
+get_instance_status_dir() {
+    local namespace="${1:-$CLIEXTRA_DEFAULT_NS}"
+    local ns_dir=$(get_namespace_dir "$namespace")
+    echo "$ns_dir/$CLIEXTRA_STATUS_SUBDIR"
+}
+
+# 获取实例状态文件路径
+get_instance_status_file() {
+    local instance_id="$1"
+    local namespace="${2:-$CLIEXTRA_DEFAULT_NS}"
+    local status_dir=$(get_instance_status_dir "$namespace")
+    echo "$status_dir/${instance_id}.status"
 }
 
 # 获取项目配置目录

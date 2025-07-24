@@ -604,6 +604,17 @@ $role_content
         echo "接管会话: tmux attach-session -t $session_name"
         echo "分离会话: 在会话中按 Ctrl+B, D"
         
+        # 创建实例状态文件
+        if [ -f "$SCRIPT_DIR/cliExtra-status-manager.sh" ]; then
+            source "$SCRIPT_DIR/cliExtra-status-manager.sh"
+            local initial_task="实例启动完成，等待任务"
+            if create_status_file "$instance_id" "$STATUS_IDLE" "$initial_task" "$namespace"; then
+                echo "✓ 状态文件已创建"
+            else
+                echo "⚠️  状态文件创建失败，但不影响实例运行"
+            fi
+        fi
+        
         # 保存实例信息
         cat > "$session_dir/info" << EOF
 INSTANCE_ID="$instance_id"

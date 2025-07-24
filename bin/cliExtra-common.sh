@@ -267,3 +267,52 @@ check_dependencies() {
 
 # 自动执行依赖检查（可选）
 # check_dependencies
+
+# 获取实例的namespace
+get_instance_namespace() {
+    local instance_id="$1"
+    
+    # 从工作目录的namespace结构中查找实例
+    if [ -d "$CLIEXTRA_HOME/namespaces" ]; then
+        for ns_dir in "$CLIEXTRA_HOME/namespaces"/*; do
+            local instance_dir="$ns_dir/instances/instance_$instance_id"
+            if [[ -d "$instance_dir" ]]; then
+                basename "$ns_dir"
+                return 0
+            fi
+        done
+    fi
+    
+    # 向后兼容：查找实例所在的项目目录
+    local project_dir=$(find_instance_project "$instance_id")
+    if [[ $? -eq 0 ]]; then
+        # 首先尝试新的namespace目录结构
+        local namespaces_dir="$project_dir/.cliExtra/namespaces"
+        if [[ -d "$namespaces_dir" ]]; then
+            for ns_dir in "$namespaces_dir"/*; do
+                if [[ -d "$ns_dir" ]]; then
+                    local instance_dir="$ns_dir/instances/instance_$instance_id"
+                    if [[ -d "$instance_dir" ]]; then
+                        basename "$ns_dir"
+                        return 0
+                    fi
+                fi
+            done
+        fi
+        
+        # 检查旧的实例目录结构
+        local instance_dir="$project_dir/.cliExtra/instances/instance_$instance_id"
+        if [[ -d "$instance_dir" ]]; then
+            # 检查是否有namespace文件
+            local namespace_file="$instance_dir/namespace"
+            if [[ -f "$namespace_file" ]]; then
+                cat "$namespace_file"
+                return 0
+            fi
+        fi
+    fi
+    
+    # 默认返回default
+    echo "default"
+    return 0
+}
