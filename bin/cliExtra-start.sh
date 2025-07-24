@@ -564,10 +564,10 @@ EOF
     # 构建 q chat 命令
     local q_command="q chat --trust-all-tools"
     
-    # 如果有角色文件，添加为 context
+    # 如果有角色文件，我们需要通过其他方式传入角色信息
+    # 由于 Q CLI 不直接支持 --context 参数，我们将在启动后发送角色信息
     if [ -n "$role_file" ] && [ -f "$role_file" ]; then
-        echo "使用角色定义作为上下文: $(basename "$role_file")"
-        q_command="q chat --trust-all-tools --context \"$role_file\""
+        echo "准备加载角色定义: $(basename "$role_file")"
     fi
     
     # 启动tmux会话，在项目目录中运行
@@ -584,6 +584,29 @@ EOF
     
     # 等待 Q 启动
     sleep 3
+    
+    # 如果有角色文件，发送角色定义作为初始消息
+    if [ -n "$role_file" ] && [ -f "$role_file" ]; then
+        echo "加载角色定义: $(basename "$role_file")"
+        
+        # 读取角色文件内容
+        local role_content=$(cat "$role_file")
+        
+        # 构建角色加载消息
+        local role_message="请按照以下角色定义来协助我：
+
+$role_content
+
+请确认你已理解并将按照以上角色定义来协助我的工作。"
+        
+        # 发送角色定义消息
+        tmux send-keys -t "$session_name" "$role_message" Enter
+        
+        echo "✓ 角色定义已加载: $(basename "$role_file")"
+        
+        # 等待角色加载完成
+        sleep 2
+    fi
     
     # 如果指定了上下文实例，加载其历史对话
     if [ -n "$context_instance" ]; then
