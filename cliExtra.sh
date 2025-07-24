@@ -46,6 +46,8 @@ show_help() {
     echo "  $0 start --namespace frontend           # 在frontend namespace中启动实例"
     echo "  $0 start --name api --ns backend        # 在backend namespace中启动名为api的实例"
     echo "  $0 start --context old-instance         # 恢复已停止的实例，载入历史上下文"
+    echo "  $0 start --name myproject -f            # 强制启动实例（即使已存在）"
+    echo "  $0 start --role frontend -f             # 强制应用角色预设（不需要确认）"
     echo ""
     echo "其他示例:"
     echo "  $0 send myproject '你好，Q!'  # 发送消息到实例myproject"

@@ -6,29 +6,8 @@
 
 ### 获取最新 Workflow 配置
 ```bash
-# 显示当前namespace的workflow配置
-qq workflow show
-
 # 显示指定namespace的workflow配置  
 qq workflow show <namespace>
-
-# 查看workflow执行状态
-qq workflow status
-
-# 显示DAG结构和角色分配
-qq workflow dag show
-
-# 查看所有namespace的workflow列表
-qq workflow list
-```
-
-### 获取当前任务状态
-```bash
-# 查看当前工作流状态和角色实例映射
-workflow-engine status
-
-# 查看指定namespace的状态
-workflow-engine status <namespace>
 ```
 
 ## 🎯 基于 Workflow 的行为指导
@@ -37,7 +16,7 @@ workflow-engine status <namespace>
 根据 workflow 配置，你必须：
 
 1. **角色职责遵循**
-   - 严格按照 `qq workflow dag show` 显示的角色定义工作
+   - 严格按照 `qq workflow show <namespace>` 显示的角色定义工作
    - 只使用角色定义中允许的 tools
    - 专注于你的 responsibilities 范围内的工作
 

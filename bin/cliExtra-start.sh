@@ -145,6 +145,7 @@ parse_start_args() {
     local role=""
     local namespace="default"
     local context_instance=""
+    local force="false"
     
     # 解析参数
     while [[ $# -gt 0 ]]; do
@@ -164,6 +165,10 @@ parse_start_args() {
             --context)
                 context_instance="$2"
                 shift 2
+                ;;
+            -f|--force)
+                force="true"
+                shift
                 ;;
             -*)
                 echo "未知参数: $1"
@@ -196,7 +201,7 @@ parse_start_args() {
         echo "自动生成实例ID: $instance_name" >&2
     fi
     
-    echo "$instance_name|$project_path|$role|$namespace|$context_instance"
+    echo "$instance_name|$project_path|$role|$namespace|$context_instance|$force"
 }
 
 # 项目初始化
@@ -392,6 +397,7 @@ start_tmux_instance() {
     local project_dir="$2"
     local namespace="$3"
     local context_instance="$4"
+    local force="$5"
     local session_name="q_instance_$instance_id"
     
     # 使用工作目录统一管理所有实例信息
@@ -449,9 +455,16 @@ EOF
     
     # 检查实例是否已经在运行
     if tmux has-session -t "$session_name" 2>/dev/null; then
-        echo "实例 $instance_id 已经在运行"
-        echo "使用 'tmux attach-session -t $session_name' 接管会话"
-        return
+        if [ "$force" = "true" ]; then
+            echo "实例 $instance_id 已经在运行，强制重启..."
+            tmux kill-session -t "$session_name"
+            sleep 1
+        else
+            echo "实例 $instance_id 已经在运行"
+            echo "使用 'tmux attach-session -t $session_name' 接管会话"
+            echo "或使用 -f 参数强制重启实例"
+            return
+        fi
     fi
     
     echo "启动tmux q CLI实例 $instance_id"
@@ -524,7 +537,7 @@ if [[ "$args_result" == RESUME\|* ]]; then
 fi
 
 # 解析结果
-IFS='|' read -r instance_id project_path role namespace context_instance <<< "$args_result"
+IFS='|' read -r instance_id project_path role namespace context_instance force <<< "$args_result"
 
 # 初始化项目
 project_dir=$(init_project "$project_path")
@@ -536,8 +549,12 @@ fi
 # 应用角色预设（如果指定）
 if [ -n "$role" ]; then
     echo "应用角色预设: $role"
-    "$SCRIPT_DIR/cliExtra-role.sh" apply "$role"
+    if [ "$force" = "true" ]; then
+        "$SCRIPT_DIR/cliExtra-role.sh" apply "$role" -f
+    else
+        "$SCRIPT_DIR/cliExtra-role.sh" apply "$role"
+    fi
 fi
 
 # 启动实例
-start_tmux_instance "$instance_id" "$project_dir" "$namespace" "$context_instance" 
+start_tmux_instance "$instance_id" "$project_dir" "$namespace" "$context_instance" "$force" 

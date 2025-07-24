@@ -169,6 +169,23 @@ qq clean all --dry-run
 qq clean all --namespace backend --dry-run
 ```
 
+### 配置管理
+
+```bash
+# 查看当前配置和系统状态
+qq config show
+
+# 获取特定配置项
+qq config get home          # 显示工作目录
+qq config get os            # 显示操作系统类型
+
+# 自定义工作目录（如果需要）
+qq config set home /custom/path
+
+# 重置为默认配置
+qq config reset
+```
+
 ### 角色预设管理
 
 ```bash
@@ -367,7 +384,9 @@ cliExtra 采用工作目录统一管理的方式，所有实例信息都存储�
     └── cloned-repo/
 
 # Linux 系统
-/opt/cliExtra/
+~/.cliExtra/                    # 普通用户使用用户目录
+# 或
+/opt/cliExtra/                  # root 用户使用系统级目录
 ├── config
 ├── namespaces/
 │   ├── default/
