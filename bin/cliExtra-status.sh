@@ -16,10 +16,6 @@ is_instance_alive() {
     
     local status_file=$(get_instance_status_file "$instance_id" "$namespace")
     
-    if [[ ! -f "$status_file" ]]; then
-        return 1
-    fi
-    
     # 检查tmux会话是否存在
     local session_name="q_instance_$instance_id"
     if tmux has-session -t "$session_name" 2>/dev/null; then
@@ -28,6 +24,104 @@ is_instance_alive() {
         # 会话不存在，清理状态文件
         remove_status_file "$instance_id" "$namespace"
         return 1
+    fi
+}
+
+# 安全读取状态值
+safe_read_status() {
+    local instance_id="$1"
+    local namespace="${2:-$CLIEXTRA_DEFAULT_NS}"
+    
+    local status_file=$(get_instance_status_file "$instance_id" "$namespace")
+    
+    if [[ ! -f "$status_file" ]]; then
+        echo "0"  # 默认空闲
+        return 0
+    fi
+    
+    local status=$(cat "$status_file" 2>/dev/null | tr -d '\n\r\t ')
+    
+    # 验证状态值
+    if [[ "$status" == "0" || "$status" == "1" ]]; then
+        echo "$status"
+    else
+        echo "0"  # 无效状态默认为空闲
+    fi
+}
+
+# 验证和修复状态文件
+validate_and_fix_status_file() {
+    local status_file="$1"
+    
+    if [[ ! -f "$status_file" ]]; then
+        return 1
+    fi
+    
+    # 尝试用jq验证JSON格式
+    if command -v jq >/dev/null 2>&1; then
+        if ! jq empty "$status_file" >/dev/null 2>&1; then
+            echo "警告: 状态文件格式错误，尝试修复: $status_file" >&2
+            
+            # 尝试从文件名提取实例ID
+            local filename=$(basename "$status_file")
+            local instance_id="${filename%.status}"
+            
+            # 创建默认状态文件
+            local temp_file="${status_file}.fix.$$"
+            cat > "$temp_file" << 'EOF'
+{
+  "status": "idle",
+  "timestamp": "2025-07-24T00:00:00Z",
+  "task": "状态文件已修复",
+  "pid": "",
+  "last_activity": "2025-07-24T00:00:00Z",
+  "instance_id": "unknown",
+  "namespace": "default"
+}
+EOF
+            
+            # 更新实例ID
+            if command -v jq >/dev/null 2>&1; then
+                jq --arg id "$instance_id" '.instance_id = $id' "$temp_file" > "${temp_file}.new" && mv "${temp_file}.new" "$temp_file"
+            fi
+            
+            # 替换损坏的文件
+            if mv "$temp_file" "$status_file"; then
+                echo "✓ 状态文件已修复: $status_file" >&2
+                return 0
+            else
+                rm -f "$temp_file"
+                return 1
+            fi
+        fi
+    fi
+    
+    return 0
+}
+
+# 安全读取状态文件信息
+safe_read_status_info() {
+    local status_file="$1"
+    local field="$2"
+    local default_value="${3:-}"
+    
+    if [[ ! -f "$status_file" ]]; then
+        echo "$default_value"
+        return 1
+    fi
+    
+    # 验证并修复状态文件
+    validate_and_fix_status_file "$status_file"
+    
+    if command -v jq >/dev/null 2>&1; then
+        local value=$(jq -r ".$field // \"$default_value\"" "$status_file" 2>/dev/null)
+        if [[ "$value" == "null" || -z "$value" ]]; then
+            echo "$default_value"
+        else
+            echo "$value"
+        fi
+    else
+        echo "$default_value"
     fi
 }
 
@@ -129,53 +223,37 @@ show_instance_status() {
         return 1
     fi
     
-    local status_content=$(read_status_file "$instance_id" "$namespace")
-    if [[ $? -ne 0 ]]; then
-        if [[ "$output_format" == "json" ]]; then
-            echo "{\"error\": \"无法读取状态文件\", \"instance_id\": \"$instance_id\", \"namespace\": \"$namespace\"}"
+    # 读取简化状态值
+    local status_value=$(safe_read_status "$instance_id" "$namespace")
+    local status_name=$(status_to_name "$status_value")
+    
+    # 获取状态文件信息
+    local status_file=$(get_instance_status_file "$instance_id" "$namespace")
+    local last_activity=""
+    if [[ -f "$status_file" ]]; then
+        last_activity=$(date -r "$status_file" "+%Y-%m-%d %H:%M:%S" 2>/dev/null || echo "")
+    fi
+    
+    # 获取会话状态
+    local session_name="q_instance_$instance_id"
+    local session_status="Unknown"
+    if tmux has-session -t "$session_name" 2>/dev/null; then
+        session_status=$(tmux display-message -t "$session_name" -p "#{session_attached}" 2>/dev/null)
+        if [[ "$session_status" == "1" ]]; then
+            session_status="Attached"
         else
-            echo "错误: 无法读取实例 $instance_id 的状态文件"
+            session_status="Detached"
         fi
-        return 1
     fi
     
     if [[ "$output_format" == "json" ]]; then
-        echo "$status_content"
+        echo "{\"instance_id\": \"$instance_id\", \"namespace\": \"$namespace\", \"status\": \"$status_name\", \"last_activity\": \"$last_activity\", \"session_status\": \"$session_status\"}"
     else
         # 表格格式显示
-        if command -v jq >/dev/null 2>&1; then
-            local status=$(echo "$status_content" | jq -r '.status // "unknown"')
-            local timestamp=$(echo "$status_content" | jq -r '.timestamp // ""')
-            local task=$(echo "$status_content" | jq -r '.task // ""')
-            local pid=$(echo "$status_content" | jq -r '.pid // ""')
-            local last_activity=$(echo "$status_content" | jq -r '.last_activity // ""')
-            
-            echo "实例: $instance_id (namespace: $namespace)"
-            echo "状态: $status"
-            echo "创建时间: $timestamp"
-            echo "最后活动: $last_activity"
-            if [[ -n "$task" && "$task" != "null" ]]; then
-                echo "当前任务: $task"
-            fi
-            if [[ -n "$pid" && "$pid" != "null" ]]; then
-                echo "进程ID: $pid"
-            fi
-            
-            # 显示tmux会话状态
-            local session_name="q_instance_$instance_id"
-            if tmux has-session -t "$session_name" 2>/dev/null; then
-                local client_count=$(tmux list-clients -t "$session_name" 2>/dev/null | wc -l)
-                if [[ $client_count -gt 0 ]]; then
-                    echo "会话状态: Attached ($client_count 个客户端)"
-                else
-                    echo "会话状态: Detached"
-                fi
-            fi
-        else
-            echo "警告: 需要安装 jq 来解析状态信息" >&2
-            echo "原始状态内容:"
-            echo "$status_content"
-        fi
+        echo "实例: $instance_id (namespace: $namespace)"
+        echo "状态: $status_name"
+        echo "最后活动: $last_activity"
+        echo "会话状态: $session_status"
     fi
 }
 
@@ -233,32 +311,18 @@ show_all_status() {
                 
                 # 检查实例是否还存活
                 if is_instance_alive "$instance_id" "$file_namespace"; then
-                    if command -v jq >/dev/null 2>&1; then
-                        local status_content=$(cat "$status_file")
-                        local status=$(echo "$status_content" | jq -r '.status // "unknown"')
-                        local task=$(echo "$status_content" | jq -r '.task // ""')
-                        local last_activity=$(echo "$status_content" | jq -r '.last_activity // ""')
-                        
-                        # 格式化时间显示
-                        local formatted_time=""
-                        if [[ -n "$last_activity" && "$last_activity" != "null" ]]; then
-                            formatted_time=$(date -j -f "%Y-%m-%dT%H:%M:%SZ" "$last_activity" "+%m-%d %H:%M" 2>/dev/null || echo "$last_activity")
-                        fi
-                        
-                        # 截断任务描述
-                        local short_task=""
-                        if [[ -n "$task" && "$task" != "null" ]]; then
-                            if [[ ${#task} -gt 20 ]]; then
-                                short_task="${task:0:17}..."
-                            else
-                                short_task="$task"
-                            fi
-                        fi
-                        
-                        printf "%-30s %-15s %-10s %-20s %s\n" "$instance_id" "$file_namespace" "$status" "$formatted_time" "$short_task"
-                    else
-                        printf "%-30s %-15s %-10s %-20s %s\n" "$instance_id" "$file_namespace" "unknown" "" "需要jq解析"
+                    # 使用安全读取状态的方法，而不是期望JSON格式
+                    local status_value=$(safe_read_status "$instance_id" "$file_namespace")
+                    local status=$(status_to_name "$status_value")
+                    local task=""  # 简化版本不支持任务描述
+                    local last_activity=""
+                    
+                    # 获取文件最后修改时间作为活动时间
+                    if [[ -f "$status_file" ]]; then
+                        last_activity=$(date -r "$status_file" "+%m-%d %H:%M" 2>/dev/null || echo "")
                     fi
+                    
+                    printf "%-30s %-15s %-10s %-20s %s\n" "$instance_id" "$file_namespace" "$status" "$last_activity" "$task"
                 else
                     # 实例不存活，显示为灰色或标记
                     printf "%-30s %-15s %-10s %-20s %s\n" "$instance_id" "$file_namespace" "stopped" "" "实例已停止"
@@ -271,30 +335,28 @@ show_all_status() {
 # 设置实例状态
 set_instance_status() {
     local instance_id="$1"
-    local status="$2"
-    local task="$3"
-    local namespace="$4"
+    local status_name="$2"
+    local namespace="$3"
     
-    # 验证状态值
-    if ! validate_status "$status"; then
+    if [[ -z "$instance_id" || -z "$status_name" ]]; then
+        echo "错误: 实例ID和状态不能为空"
         return 1
     fi
     
-    # 检查实例是否存在
-    if ! is_instance_alive "$instance_id" "$namespace"; then
-        echo "错误: 实例 $instance_id 不存在或已停止 (namespace: $namespace)" >&2
+    # 转换状态名称为数字
+    local status_value=$(name_to_status "$status_name")
+    if [[ "$status_value" == "-1" ]]; then
+        echo "错误: 无效的状态名称 '$status_name'。有效值: idle, busy"
         return 1
     fi
     
     # 更新状态文件
-    if update_status_file "$instance_id" "$status" "$task" "$namespace"; then
-        echo "✓ 实例 $instance_id 状态已更新为: $status"
-        if [[ -n "$task" ]]; then
-            echo "  任务描述: $task"
-        fi
+    if update_status_file "$instance_id" "$status_value" "$namespace"; then
+        local status_display=$(status_to_name "$status_value")
+        echo "✓ 实例 $instance_id 状态已更新为: $status_display"
         return 0
     else
-        echo "错误: 无法更新实例 $instance_id 的状态" >&2
+        echo "错误: 无法更新实例状态"
         return 1
     fi
 }
@@ -417,7 +479,7 @@ main() {
         
         if [[ -n "$set_status" ]]; then
             # 设置状态模式
-            set_instance_status "$instance_id" "$set_status" "$task" "$namespace"
+            set_instance_status "$instance_id" "$set_status" "$namespace"
         else
             # 查看单个实例状态
             show_instance_status "$instance_id" "$namespace" "$output_format"

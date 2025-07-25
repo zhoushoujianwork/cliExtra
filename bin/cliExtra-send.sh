@@ -36,53 +36,35 @@ check_instance_status() {
     local instance_id="$1"
     local force_send="${2:-false}"
     
+    # 如果是强制发送，直接返回成功
+    if [[ "$force_send" == "true" ]]; then
+        return 0
+    fi
+    
     # 获取实例的namespace
     local namespace=$(get_instance_namespace "$instance_id")
     if [[ -z "$namespace" ]]; then
         namespace="$CLIEXTRA_DEFAULT_NS"
     fi
     
-    # 获取状态文件路径
-    local status_file=$(get_instance_status_file "$instance_id" "$namespace")
+    # 读取简化状态值
+    local status_value=$(read_status_file "$instance_id" "$namespace")
     
-    # 如果状态文件不存在，假设实例是空闲的
-    if [[ ! -f "$status_file" ]]; then
+    # 检查状态：0=idle 可以发送，1=busy 不能发送
+    if [[ "$status_value" == "0" ]]; then
         return 0  # 可以发送
-    fi
-    
-    # 读取状态
-    if command -v jq >/dev/null 2>&1; then
-        local status=$(jq -r '.status // "idle"' "$status_file" 2>/dev/null)
-        local task=$(jq -r '.task // ""' "$status_file" 2>/dev/null)
-        
-        # 如果是强制发送，直接返回成功
-        if [[ "$force_send" == "true" ]]; then
-            return 0
-        fi
-        
-        # 检查状态
-        if [[ "$status" == "idle" ]]; then
-            return 0  # 可以发送
-        else
-            # 显示状态信息
-            local status_desc=""
-            case "$status" in
-                "busy") status_desc="忙碌" ;;
-                "waiting") status_desc="等待中" ;;
-                "error") status_desc="错误状态" ;;
-                *) status_desc="$status" ;;
-            esac
-            
-            echo "实例 $instance_id 当前状态为 $status_desc，无法发送消息"
-            if [[ -n "$task" && "$task" != "null" ]]; then
-                echo "当前任务: $task"
-            fi
-            echo "提示: 使用 --force 参数可以强制发送"
-            return 1  # 不能发送
-        fi
     else
-        # 没有jq，假设可以发送
-        return 0
+        # 显示状态信息
+        local status_name=$(status_to_name "$status_value")
+        local status_desc=""
+        case "$status_name" in
+            "busy") status_desc="忙碌" ;;
+            *) status_desc="$status_name" ;;
+        esac
+        
+        echo "实例 $instance_id 当前状态为 $status_desc，无法发送消息"
+        echo "提示: 使用 --force 参数可以强制发送"
+        return 1  # 不能发送
     fi
 }
 

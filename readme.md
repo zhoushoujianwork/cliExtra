@@ -314,6 +314,32 @@ qq start --name api --ns backend
 
 # 修改实例的namespace
 qq set-ns myinstance backend  # 将实例移动到backend namespace
+
+# 清理无效的namespace目录
+qq cleanup-invalid-ns --dry-run    # 预览模式，查看将要清理的目录
+qq cleanup-invalid-ns --force      # 强制清理包含无效字符的namespace
+```
+
+#### Namespace 名称规则
+
+为确保系统稳定性，namespace 名称必须符合以下规则：
+
+- **字符限制**: 只能包含英文字母、数字、下划线(_)和连字符(-)
+- **长度限制**: 不超过 32 个字符
+- **禁止字符**: 不能包含中文、空格或其他特殊字符
+
+**示例**:
+```bash
+# ✅ 有效的 namespace 名称
+qq ns create frontend
+qq ns create backend-api
+qq ns create test_env
+qq ns create dev123
+
+# ❌ 无效的 namespace 名称
+qq ns create "前端开发"           # 包含中文
+qq ns create "frontend dev"      # 包含空格
+qq ns create "very-long-namespace-name-that-exceeds-limit"  # 超过32字符
 ```
 
 #### 智能默认行为示例

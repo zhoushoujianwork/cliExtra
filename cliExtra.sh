@@ -31,6 +31,7 @@ show_help() {
     echo "  $0 ns <command>              - namespace管理"
     echo "  $0 set-ns <id> <namespace>   - 修改实例的namespace"
     echo "  $0 cleanup-invalid-ns        - 清理无效的namespace目录"
+    echo "  $0 wf <command>              - 监控守护进程管理 (start|stop|status)"
 
     echo "  $0 broadcast <message>       - 广播消息到实例"
     echo "  $0 tools <command>           - 工具管理"
@@ -84,6 +85,8 @@ show_help() {
   $0 status -n frontend        # 显示 frontend namespace 实例状态
   $0 status --cleanup          # 清理过期状态文件"
 
+    echo "  $0 wf start                  # 启动监控守护进程"
+    echo "  $0 wf status                 # 查看监控状态"
     echo "  $0 tools add git             # 添加git工具到当前项目"
     echo "  $0 replay instance backend-api  # 回放backend-api实例的对话"
     echo ""
@@ -173,6 +176,10 @@ case "${1:-}" in
     
     "cleanup-invalid-ns")
         "$SCRIPT_DIR/bin/cliExtra-cleanup-invalid-ns.sh" "${@:2}"
+        ;;
+    
+    "wf")
+        "$SCRIPT_DIR/bin/cliExtra-wf.sh" "${@:2}"
         ;;
 
     "broadcast")
