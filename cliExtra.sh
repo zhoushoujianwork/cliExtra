@@ -31,7 +31,6 @@ show_help() {
     echo "  $0 set-ns <id> <namespace>   - 修改实例的namespace"
     echo "  $0 cleanup-invalid-ns        - 清理无效的namespace目录"
     echo "  $0 sender-stats [time]       - 查看发送者统计信息"
-    echo "  $0 sender-info               - 获取当前发送者信息"
     echo "  $0 eg <command>              - 监控守护引擎管理 (start|stop|status)"
     echo "  $0 dag <command>             - DAG 工作流管理 (list|show|create)"
 
@@ -178,9 +177,6 @@ case "${1:-}" in
     "sender-track")
         "$SCRIPT_DIR/bin/cliExtra-sender-id.sh" track "${@:2}"
         ;;
-    "sender-info")
-        "$SCRIPT_DIR/bin/cliExtra-sender-id.sh" get-sender "${@:2}"
-        ;;
     
     "eg")
         "$SCRIPT_DIR/bin/cliExtra-eg.sh" "${@:2}"
@@ -204,6 +200,7 @@ case "${1:-}" in
         ;;
     *)
         echo "未知命令: $1"
-        show_help
+        echo "请使用 qq help 查看帮助"
+        exit 1
         ;;
 esac 

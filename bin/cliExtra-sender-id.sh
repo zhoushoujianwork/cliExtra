@@ -40,6 +40,63 @@ get_sender_info() {
     echo "${current_namespace}:${current_instance}"
 }
 
+# 获取实例的角色信息
+get_instance_role_info() {
+    local instance_id="$1"
+    local namespace="$2"
+    
+    # 查找实例信息文件
+    local instance_dir=$(find_instance_info_dir "$instance_id")
+    if [[ $? -ne 0 || -z "$instance_dir" ]]; then
+        echo ""
+        return 1
+    fi
+    
+    local info_file="$instance_dir/info"
+    if [[ ! -f "$info_file" ]]; then
+        echo ""
+        return 1
+    fi
+    
+    # 从info文件中提取角色信息
+    local role=$(grep "^ROLE=" "$info_file" | cut -d'=' -f2 | tr -d '"')
+    if [[ -z "$role" ]]; then
+        echo ""
+        return 1
+    fi
+    
+    # 角色名称映射到中文
+    case "$role" in
+        "shell") echo "Shell工程师" ;;
+        "frontend") echo "前端工程师" ;;
+        "backend") echo "后端工程师" ;;
+        "fullstack") echo "全栈工程师" ;;
+        "devops") echo "运维工程师" ;;
+        "test") echo "测试工程师" ;;
+        "embedded") echo "嵌入式工程师" ;;
+        "data") echo "数据工程师" ;;
+        "ai") echo "AI工程师" ;;
+        "security") echo "安全工程师" ;;
+        "system-coordinator") echo "系统协调员" ;;
+        *) echo "${role}工程师" ;;
+    esac
+}
+
+# 生成身份信息文本
+generate_identity_message() {
+    local instance_id="$1"
+    local namespace="$2"
+    
+    # 获取角色信息
+    local role_name=$(get_instance_role_info "$instance_id" "$namespace")
+    
+    if [[ -n "$role_name" ]]; then
+        echo "你是 ns:${namespace} 的 ${role_name}"
+    else
+        echo "你是 ns:${namespace} 的实例 ${instance_id}"
+    fi
+}
+
 # 格式化发送者标识
 format_sender_id() {
     local sender_info="$1"

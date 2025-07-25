@@ -10,6 +10,63 @@ source "$SCRIPT_DIR/cliExtra-status-manager.sh"
 source "$SCRIPT_DIR/cliExtra-sender-id.sh"
 source "$SCRIPT_DIR/cliExtra-dag-hooks.sh"
 
+# 获取实例的角色信息
+get_instance_role_info() {
+    local instance_id="$1"
+    local namespace="$2"
+    
+    # 查找实例信息文件
+    local instance_dir=$(find_instance_info_dir "$instance_id")
+    if [[ $? -ne 0 || -z "$instance_dir" ]]; then
+        echo ""
+        return 1
+    fi
+    
+    local info_file="$instance_dir/info"
+    if [[ ! -f "$info_file" ]]; then
+        echo ""
+        return 1
+    fi
+    
+    # 从info文件中提取角色信息
+    local role=$(grep "^ROLE=" "$info_file" | cut -d'=' -f2 | tr -d '"')
+    if [[ -z "$role" ]]; then
+        echo ""
+        return 1
+    fi
+    
+    # 角色名称映射到中文
+    case "$role" in
+        "shell") echo "Shell工程师" ;;
+        "frontend") echo "前端工程师" ;;
+        "backend") echo "后端工程师" ;;
+        "fullstack") echo "全栈工程师" ;;
+        "devops") echo "运维工程师" ;;
+        "test") echo "测试工程师" ;;
+        "embedded") echo "嵌入式工程师" ;;
+        "data") echo "数据工程师" ;;
+        "ai") echo "AI工程师" ;;
+        "security") echo "安全工程师" ;;
+        "system-coordinator") echo "系统协调员" ;;
+        *) echo "${role}工程师" ;;
+    esac
+}
+
+# 生成身份信息文本
+generate_identity_message() {
+    local instance_id="$1"
+    local namespace="$2"
+    
+    # 获取角色信息
+    local role_name=$(get_instance_role_info "$instance_id" "$namespace")
+    
+    if [[ -n "$role_name" ]]; then
+        echo "你是 ns:${namespace} 的 ${role_name}"
+    else
+        echo "你是 ns:${namespace} 的实例 ${instance_id}"
+    fi
+}
+
 # 显示帮助
 show_help() {
     echo "用法: cliExtra send <instance_id> <message> [options]"
@@ -299,24 +356,30 @@ send_message_to_instance() {
         return 1
     fi
     
+    # 获取实例的namespace
+    local namespace=$(get_instance_namespace "$instance_id")
+    if [[ -z "$namespace" ]]; then
+        namespace="$CLIEXTRA_DEFAULT_NS"
+    fi
+    
+    # 生成身份信息并注入到消息中
+    local identity_message=$(generate_identity_message "$instance_id" "$namespace")
+    local final_message="${identity_message}。${message}"
+    
     # 添加发送者标识（如果启用）
-    local final_message="$message"
     if [[ "$add_sender_id" == "true" ]]; then
-        final_message=$(add_sender_id_to_message "$message")
+        final_message=$(add_sender_id_to_message "$final_message")
     fi
     
     # 发送消息到tmux会话
     tmux send-keys -t "$session_name" "$final_message" Enter
     
     echo "✓ 消息已发送到实例 $instance_id: $message"
+    echo "✓ 已自动注入身份信息: $identity_message"
     
     # 记录发送者追踪信息
     if [[ "$add_sender_id" == "true" ]]; then
         local sender_info=$(get_sender_info)
-        local namespace=$(get_instance_namespace "$instance_id")
-        if [[ -z "$namespace" ]]; then
-            namespace="$CLIEXTRA_DEFAULT_NS"
-        fi
         local receiver_info="$namespace:$instance_id"
         record_sender_tracking "$sender_info" "$receiver_info" "$message"
     fi
@@ -343,11 +406,6 @@ send_message_to_instance() {
     fi
     
     # 自动设置接收实例状态为 busy
-    local namespace=$(get_instance_namespace "$instance_id")
-    if [[ -z "$namespace" ]]; then
-        namespace="$CLIEXTRA_DEFAULT_NS"
-    fi
-    
     if auto_set_busy_on_message "$instance_id" "$message" "$namespace"; then
         echo "✓ 实例状态已自动设置为忙碌"
     fi

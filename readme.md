@@ -417,13 +417,13 @@ qq replay namespace development --since "2025-01-20"
 ### 实例协作
 
 ```bash
-# 发送消息到指定实例
+# 发送消息到指定实例（自动注入身份信息）
 qq send backend-api "API开发完成，请进行前端集成"
 
 # 发送消息时不添加发送者标识
 qq send frontend-dev "调试消息" --no-sender-id
 
-# 广播消息到默认namespace的所有实例
+# 广播消息到默认namespace的所有实例（自动注入身份信息）
 qq broadcast "系统维护通知：今晚22:00-24:00进行系统升级"
 
 # 广播消息到所有namespace的实例
@@ -446,10 +446,40 @@ qq broadcast "部署通知" --dry-run
 qq sender-stats                    # 查看24小时内的统计
 qq sender-stats 7d                 # 查看7天内的统计
 qq sender-stats all                # 查看所有统计
-
-# 获取当前发送者信息
-qq sender-info
 ```
+
+#### 🤖 身份信息自动注入功能
+
+为了让AI实例能够持续感知自己的身份和角色，cliExtra 在每次发送消息时都会自动注入身份信息：
+
+**自动注入机制**：
+- 每次 `qq send` 和 `qq broadcast` 都会自动在消息前添加身份信息
+- 格式：`你是 ns:namespace 的 角色工程师。原始消息内容`
+- 例如：`你是 ns:q_cli 的 Shell工程师。请优化这个脚本的性能`
+
+**身份信息来源**：
+- **Namespace**: 从实例的namespace配置获取
+- **角色信息**: 从实例的info文件中的ROLE字段获取
+- **角色映射**: 自动将英文角色名映射为中文（如 shell → Shell工程师）
+
+**支持的角色类型**：
+- `shell` → Shell工程师
+- `frontend` → 前端工程师  
+- `backend` → 后端工程师
+- `fullstack` → 全栈工程师
+- `devops` → 运维工程师
+- `test` → 测试工程师
+- `embedded` → 嵌入式工程师
+- `data` → 数据工程师
+- `ai` → AI工程师
+- `security` → 安全工程师
+- `system-coordinator` → 系统协调员
+
+**功能价值**：
+- **持续身份感知**: AI实例在每次对话中都能明确自己的身份
+- **角色一致性**: 确保AI按照指定角色进行响应和协作
+- **上下文连续性**: 避免AI在长时间对话中忘记自己的角色定位
+- **协作效率**: 接收方能立即了解发送方的专业领域和职责范围
 
 #### 🏷️ 发送者标识功能
 
@@ -457,8 +487,8 @@ qq sender-info
 
 **默认行为**：
 - 所有消息（send/broadcast）默认自动添加发送者标识
-- 格式：`[发送者: namespace:instance_id] 原始消息内容`
-- 例如：`[发送者: default:user] API开发完成，请进行前端集成`
+- 格式：`[发送者: namespace:instance_id] 身份信息。原始消息内容`
+- 例如：`[发送者: default:user] 你是 ns:q_cli 的 Shell工程师。API开发完成，请进行前端集成`
 
 **功能价值**：
 - **DAG 流程追踪**：明确知道是哪个节点完成了任务
