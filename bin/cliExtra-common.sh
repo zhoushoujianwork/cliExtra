@@ -362,3 +362,37 @@ get_instance_namespace() {
     echo "default"
     return 0
 }
+
+# 获取实例的角色信息
+get_instance_role() {
+    local instance_id="$1"
+    local namespace="${2:-}"
+    
+    # 如果没有提供 namespace，尝试查找
+    if [[ -z "$namespace" ]]; then
+        namespace=$(get_instance_namespace "$instance_id")
+        if [[ -z "$namespace" ]]; then
+            namespace="$CLIEXTRA_DEFAULT_NS"
+        fi
+    fi
+    
+    local roles_dir="$CLIEXTRA_HOME/namespaces/$namespace/instances/instance_$instance_id/roles"
+    
+    if [[ ! -d "$roles_dir" ]]; then
+        echo ""
+        return 1
+    fi
+    
+    # 查找角色文件
+    local role_file=$(find "$roles_dir" -name "*-engineer.md" | head -1)
+    
+    if [[ -z "$role_file" ]]; then
+        echo ""
+        return 1
+    fi
+    
+    # 提取角色名称（去掉路径和后缀）
+    local role_name=$(basename "$role_file" | sed 's/-engineer\.md$//')
+    echo "$role_name"
+    return 0
+}

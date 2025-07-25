@@ -397,15 +397,16 @@ output_simple() {
     fi
     
     # 输出表头
-    printf "%-30s %-15s %-15s %-15s\n" "NAME" "NAMESPACE" "STATUS" "SESSION"
+    printf "%-30s %-15s %-15s %-15s %-15s\n" "NAME" "NAMESPACE" "STATUS" "SESSION" "ROLE"
     
     # 输出分隔线
-    printf "%-30s %-15s %-15s %-15s\n" "$(printf '%*s' 30 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')"
+    printf "%-30s %-15s %-15s %-15s %-15s\n" "$(printf '%*s' 30 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')"
     
     # 输出实例信息
     for data in "${instance_data[@]}"; do
         IFS=':' read -r instance_id status session_name namespace <<< "$data"
-        printf "%-30s %-15s %-15s %-15s\n" "$instance_id" "$namespace" "$status" "$session_name"
+        local role=$(get_instance_role "$instance_id" "$namespace")
+        printf "%-30s %-15s %-15s %-15s %-15s\n" "$instance_id" "$namespace" "$status" "$session_name" "$role"
     done
 }
 
@@ -448,17 +449,10 @@ get_instance_rich_info() {
     fi
     
     # 获取角色信息
+    role=$(get_instance_role "$instance_id" "$namespace")
+    
+    # 获取工具列表
     if [[ -n "$project_dir" && -d "$project_dir/.amazonq/rules" ]]; then
-        # 查找角色文件
-        for role_file in "$project_dir/.amazonq/rules"/*-engineer.md; do
-            if [[ -f "$role_file" ]]; then
-                local role_name=$(basename "$role_file" | sed 's/-engineer.md$//')
-                role="$role_name"
-                break
-            fi
-        done
-        
-        # 获取工具列表
         for tool_file in "$project_dir/.amazonq/rules"/tools_*.md; do
             if [[ -f "$tool_file" ]]; then
                 local tool_name=$(basename "$tool_file" | sed 's/tools_//' | sed 's/.md$//')
@@ -661,17 +655,10 @@ output_instance_json() {
     fi
     
     # 获取角色信息
+    role=$(get_instance_role "$instance_id" "$namespace")
+    
+    # 获取工具列表
     if [[ -n "$project_dir" && -d "$project_dir/.amazonq/rules" ]]; then
-        # 查找角色文件
-        for role_file in "$project_dir/.amazonq/rules"/*-engineer.md; do
-            if [[ -f "$role_file" ]]; then
-                local role_name=$(basename "$role_file" | sed 's/-engineer.md$//')
-                role="$role_name"
-                break
-            fi
-        done
-        
-        # 获取工具列表
         for tool_file in "$project_dir/.amazonq/rules"/tools_*.md; do
             if [[ -f "$tool_file" ]]; then
                 local tool_name=$(basename "$tool_file" | sed 's/tools_//' | sed 's/.md$//')
