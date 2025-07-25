@@ -6,6 +6,61 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 
+# 参数验证函数
+validate_namespace_name() {
+    local name="$1"
+    if [[ -z "$name" ]]; then
+        return 1
+    fi
+    # 检查长度（不超过32个字符）
+    if [[ ${#name} -gt 32 ]]; then
+        echo "错误: namespace 名称长度不能超过32个字符"
+        return 1
+    fi
+    # 检查字符（只允许字母、数字、下划线、连字符）
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "错误: namespace 名称只能包含字母、数字、下划线和连字符"
+        return 1
+    fi
+    return 0
+}
+
+validate_instance_name() {
+    local name="$1"
+    if [[ -z "$name" ]]; then
+        return 1
+    fi
+    # 检查长度（不超过64个字符）
+    if [[ ${#name} -gt 64 ]]; then
+        echo "错误: 实例名称长度不能超过64个字符"
+        return 1
+    fi
+    # 检查字符（只允许字母、数字、下划线、连字符）
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "错误: 实例名称只能包含字母、数字、下划线和连字符"
+        return 1
+    fi
+    return 0
+}
+
+validate_role_name() {
+    local name="$1"
+    if [[ -z "$name" ]]; then
+        return 1
+    fi
+    # 检查长度（不超过32个字符）
+    if [[ ${#name} -gt 32 ]]; then
+        echo "错误: 角色名称长度不能超过32个字符"
+        return 1
+    fi
+    # 检查字符（只允许字母、数字、下划线、连字符）
+    if [[ ! "$name" =~ ^[a-zA-Z0-9_-]+$ ]]; then
+        echo "错误: 角色名称只能包含字母、数字、下划线和连字符"
+        return 1
+    fi
+    return 0
+}
+
 # 恢复已停止的实例
 resume_instance() {
     local instance_id="$1"
@@ -170,7 +225,7 @@ parse_start_args() {
                 role="$2"
                 shift 2
                 ;;
-            --namespace|--ns)
+            --namespace|--ns|-n)
                 if [[ -z "$2" ]]; then
                     echo "错误: --namespace 参数需要指定 namespace 名称"
                     return 1
@@ -205,6 +260,11 @@ parse_start_args() {
                     echo "  --context <instance>  从指定实例加载历史上下文"
                     echo "  -f, --force           强制启动（重启已存在的实例）"
                     echo ""
+                    echo "参数格式要求:"
+                    echo "  namespace: 只能包含字母、数字、下划线、连字符，长度≤32"
+                    echo "  实例名称: 只能包含字母、数字、下划线、连字符，长度≤64"
+                    echo "  角色名称: 只能包含字母、数字、下划线、连字符，长度≤32"
+                    echo ""
                     echo "示例:"
                     echo "  cliExtra start                        # 在当前目录启动"
                     echo "  cliExtra start --name myproject       # 指定实例名"
@@ -226,6 +286,39 @@ parse_start_args() {
                 ;;
         esac
     done
+    
+    # 严格参数验证
+    if [[ -n "$namespace" ]]; then
+        if ! validate_namespace_name "$namespace"; then
+            echo "错误: namespace 名称 '$namespace' 不符合规范"
+            echo "namespace 名称只能包含字母、数字、下划线和连字符，长度不超过32个字符"
+            return 1
+        fi
+    fi
+    
+    if [[ -n "$instance_name" ]]; then
+        if ! validate_instance_name "$instance_name"; then
+            echo "错误: 实例名称 '$instance_name' 不符合规范"
+            echo "实例名称只能包含字母、数字、下划线和连字符，长度不超过64个字符"
+            return 1
+        fi
+    fi
+    
+    if [[ -n "$role" ]]; then
+        if ! validate_role_name "$role"; then
+            echo "错误: 角色名称 '$role' 不符合规范"
+            echo "角色名称只能包含字母、数字、下划线和连字符"
+            return 1
+        fi
+    fi
+    
+    # 验证项目路径
+    if [[ -n "$project_path" && ! "$project_path" =~ ^https?:// ]]; then
+        if [[ ! -d "$project_path" && ! -f "$project_path" ]]; then
+            echo "错误: 指定的路径 '$project_path' 不存在"
+            return 1
+        fi
+    fi
     
     # 如果指定了 --context 但没有指定 --name，则恢复指定的实例
     if [ -n "$context_instance" ] && [ -z "$instance_name" ]; then
@@ -362,9 +455,10 @@ install_default_tools() {
 # 准备角色定义到项目目录
 prepare_role_definitions() {
     local project_dir="$1"
+    local instance_id="$2"
     local role="$2"
     local roles_source_dir="$SCRIPT_DIR/../roles"
-    local roles_target_dir="$project_dir/.cliExtra/roles"
+    local roles_target_dir="$CLIEXTRA_HOME/namespaces/$namespace/instances/$instance_id/roles"
     
     # 创建目标目录
     mkdir -p "$roles_target_dir"
@@ -539,7 +633,7 @@ EOF
     # 准备角色定义
     local role_file=""
     if [ -n "$role" ] || [ -z "$context_instance" ]; then
-        role_file=$(prepare_role_definitions "$project_dir" "$role")
+        role_file=$(prepare_role_definitions "$project_dir" "$instance_id" "$role")
         if [ $? -ne 0 ] && [ -n "$role" ]; then
             echo "⚠ 角色定义准备失败，将不使用角色上下文"
             role_file=""
