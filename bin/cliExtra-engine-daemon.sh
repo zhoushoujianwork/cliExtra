@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-config.sh"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 source "$SCRIPT_DIR/cliExtra-status-manager.sh"
+source "$SCRIPT_DIR/cliExtra-dag-monitor.sh"
 
 # 守护进程配置
 DAEMON_NAME="cliExtra-engine"
@@ -20,6 +21,12 @@ MONITOR_INTERVAL=2  # 监控间隔（秒）
 LOG_TAIL_LINES=5    # 检查日志的行数
 IDLE_TIMEOUT=30     # 空闲超时时间（秒）
 SYSTEM_CHECK_INTERVAL=60  # system agent 检查间隔（秒）
+
+# DAG 监控配置
+DAG_MONITOR_INTERVAL=10       # DAG 监控间隔（秒）
+DAG_NODE_TIMEOUT=1800         # 节点执行超时时间（30分钟）
+DAG_INSTANCE_TIMEOUT=7200     # DAG 实例总超时时间（2小时）
+DAG_CLEANUP_INTERVAL=3600     # 清理间隔（1小时）
 
 # 用户输入等待符模式（支持多种格式）
 WAITING_PATTERNS=(
@@ -235,7 +242,19 @@ monitor_agent() {
 monitor_loop() {
     log_message "INFO" "Watcher daemon started (PID: $$)"
     
+    local cycle_count=0
+    local dag_monitor_cycle=0
+    local system_check_cycle=0
+    local cleanup_cycle=0
+    
+    # 计算监控周期
+    local dag_monitor_interval=$((DAG_MONITOR_INTERVAL / MONITOR_INTERVAL))
+    local system_check_interval_cycles=$((SYSTEM_CHECK_INTERVAL / MONITOR_INTERVAL))
+    local cleanup_interval_cycles=$((DAG_CLEANUP_INTERVAL / MONITOR_INTERVAL))
+    
     while true; do
+        cycle_count=$((cycle_count + 1))
+        
         # 获取活跃的 agent 列表
         local agents=($(get_active_agents))
         
@@ -248,6 +267,24 @@ monitor_loop() {
             for agent in "${agents[@]}"; do
                 monitor_agent "$agent"
             done
+        fi
+        
+        # DAG 监控（每 30 秒执行一次）
+        if [[ $((cycle_count % dag_monitor_interval)) -eq 0 ]]; then
+            log_message "DEBUG" "Running DAG monitoring cycle"
+            monitor_dags
+        fi
+        
+        # System agent 检查（每 60 秒执行一次）
+        if [[ $((cycle_count % system_check_interval_cycles)) -eq 0 ]]; then
+            log_message "DEBUG" "Running system agent check cycle"
+            check_and_fix_system_agents
+        fi
+        
+        # DAG 清理（每 1 小时执行一次）
+        if [[ $((cycle_count % cleanup_interval_cycles)) -eq 0 ]]; then
+            log_message "DEBUG" "Running DAG cleanup cycle"
+            cleanup_expired_dags
         fi
         
         # 等待下一次检查

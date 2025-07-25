@@ -279,6 +279,7 @@ show_help() {
     echo "  list [namespace]              列出 DAG 实例"
     echo "  show <dag_id> [namespace]     显示 DAG 实例详情"
     echo "  create <workflow> [namespace] 创建 DAG 实例"
+    echo "  status [options]              显示 DAG 监控状态"
     echo "  kill <dag_id> [namespace]     终止 DAG 实例"
     echo ""
     echo "选项:"
@@ -286,8 +287,20 @@ show_help() {
     echo "  -A, --all                     显示所有 namespace 的 DAG 实例"
     echo "  -n, --namespace <ns>          指定 namespace"
     echo ""
+    echo "状态命令选项:"
+    echo "  --summary, -s                 显示简要统计信息 (默认)"
+    echo "  --detailed, -d                显示详细状态信息"
+    echo "  --timeout, -t                 显示超时检测信息"
+    echo "  --json, -j                    JSON 格式输出"
+    echo ""
     echo "默认行为:"
     echo "  默认只显示 'default' namespace 中的 DAG 实例"
+    echo ""
+    echo "示例:"
+    echo "  cliExtra dag list             # 列出所有 DAG 实例"
+    echo "  cliExtra dag status           # 显示监控状态摘要"
+    echo "  cliExtra dag status -d        # 显示详细状态"
+    echo "  cliExtra dag status -t        # 显示超时信息"
     echo "  使用 -A/--all 显示所有 namespace 的 DAG 实例"
     echo ""
     echo "示例:"
@@ -382,6 +395,11 @@ case "${1:-}" in
         trigger_sender="${5:-system:admin}"
         
         create_dag_instance "$workflow_name" "$namespace" "$trigger_message" "$trigger_sender"
+        ;;
+    
+    "status")
+        # 调用 DAG 状态报告脚本
+        "$SCRIPT_DIR/cliExtra-dag-status.sh" "${@:2}"
         ;;
     
     "kill")
