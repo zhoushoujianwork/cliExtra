@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-config.sh"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 source "$SCRIPT_DIR/cliExtra-status-manager.sh"
+source "$SCRIPT_DIR/cliExtra-sender-id.sh"
 
 # 显示帮助
 show_help() {
@@ -21,11 +22,18 @@ show_help() {
     echo "  --exclude <id>      排除指定的实例ID"
     echo "  --force             强制发送，忽略实例状态检查"
     echo "  --dry-run          只显示会发送给哪些实例，不实际发送"
+    echo "  --sender-id         添加发送者标识到消息（默认启用）"
+    echo "  --no-sender-id      不添加发送者标识到消息"
     echo ""
     echo "状态检查说明:"
     echo "  默认只向 idle (空闲) 状态的实例广播消息"
     echo "  非空闲状态的实例会被跳过，避免打断工作"
     echo "  使用 --force 可以强制广播到所有实例"
+    echo ""
+    echo "发送者标识说明:"
+    echo "  默认情况下，广播消息会自动添加发送者标识，格式为："
+    echo "  [发送者: namespace:instance_id] 原始消息内容"
+    echo "  这有助于接收方识别消息来源和协作上下文"
     echo ""
     echo "默认行为:"
     echo "  默认只广播给 'default' namespace 中的实例"
@@ -291,11 +299,18 @@ broadcast_message() {
     local exclude_instance="$3"
     local dry_run="$4"
     local force_send="${5:-false}"
+    local add_sender_id="${6:-true}"
     
     if [[ -z "$message" ]]; then
         echo "错误: 请指定要广播的消息"
         show_help
         return 1
+    fi
+    
+    # 添加发送者标识（如果启用）
+    local final_message="$message"
+    if [[ "$add_sender_id" == "true" ]]; then
+        final_message=$(add_sender_id_to_message "$message")
     fi
     
     # 获取当前实例ID
@@ -367,10 +382,21 @@ broadcast_message() {
             # 检查实例状态
             if check_broadcast_instance_status "$instance" "$force_send"; then
                 # 发送消息到tmux会话
-                tmux send-keys -t "$session_name" "$message" Enter
+                tmux send-keys -t "$session_name" "$final_message" Enter
                 echo "✓ 已发送到实例: $instance"
                 success_count=$((success_count + 1))
                 successful_instances="$successful_instances $instance"
+                
+                # 记录发送者追踪信息（如果启用）
+                if [[ "$add_sender_id" == "true" ]]; then
+                    local sender_info=$(get_sender_info)
+                    local instance_namespace=$(get_instance_namespace "$instance")
+                    if [[ -z "$instance_namespace" ]]; then
+                        instance_namespace="$CLIEXTRA_DEFAULT_NS"
+                    fi
+                    local receiver_info="$instance_namespace:$instance"
+                    record_sender_tracking "$sender_info" "$receiver_info" "$message"
+                fi
             else
                 echo "⏸ 跳过忙碌实例: $instance"
                 skipped_count=$((skipped_count + 1))
@@ -445,6 +471,7 @@ EXCLUDE_INSTANCE=""
 DRY_RUN=false
 FORCE_SEND=false
 SHOW_ALL_NAMESPACES=false
+ADD_SENDER_ID=true
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -459,6 +486,14 @@ while [[ $# -gt 0 ]]; do
         --exclude)
             EXCLUDE_INSTANCE="$2"
             shift 2
+            ;;
+        --no-sender-id)
+            ADD_SENDER_ID=false
+            shift
+            ;;
+        --sender-id)
+            ADD_SENDER_ID=true
+            shift
             ;;
         --force)
             FORCE_SEND=true
@@ -491,4 +526,4 @@ while [[ $# -gt 0 ]]; do
 done
 
 # 主逻辑
-broadcast_message "$MESSAGE" "$TARGET_NAMESPACE" "$EXCLUDE_INSTANCE" "$DRY_RUN" "$FORCE_SEND"
+broadcast_message "$MESSAGE" "$TARGET_NAMESPACE" "$EXCLUDE_INSTANCE" "$DRY_RUN" "$FORCE_SEND" "$ADD_SENDER_ID"

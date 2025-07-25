@@ -7,6 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-config.sh"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 source "$SCRIPT_DIR/cliExtra-status-manager.sh"
+source "$SCRIPT_DIR/cliExtra-sender-id.sh"
 
 # 显示帮助
 show_help() {
@@ -19,16 +20,28 @@ show_help() {
     echo "选项:"
     echo "  --force       强制发送，忽略实例状态检查"
     echo "  --wait-idle   等待实例变为空闲状态后发送"
+    echo "  --sender-id   添加发送者标识到消息（默认启用）"
+    echo "  --no-sender-id 不添加发送者标识到消息"
     echo ""
     echo "状态检查说明:"
     echo "  默认只向 idle (空闲) 状态的实例发送消息"
     echo "  非空闲状态的实例会被跳过，避免打断工作"
     echo "  使用 --force 可以强制发送到任何状态的实例"
     echo ""
+    echo "发送者标识说明:"
+    echo "  默认情况下，消息会自动添加发送者标识，格式为："
+    echo "  [发送者: namespace:instance_id] 原始消息内容"
+    echo "  "
+    echo "  这有助于："
+    echo "  - DAG 流程追踪和状态更新"
+    echo "  - 协作上下文识别"
+    echo "  - 消息来源追踪和审计"
+    echo ""
     echo "示例:"
     echo "  cliExtra send backend-api \"API开发完成，请进行前端集成\""
     echo "  cliExtra send frontend-dev \"请更新用户界面组件\" --force"
     echo "  cliExtra send backend-api \"重要通知\" --wait-idle"
+    echo "  cliExtra send test-instance \"调试消息\" --no-sender-id"
 }
 
 # 检查实例状态是否可以接收消息
@@ -270,6 +283,7 @@ send_message_to_instance() {
     local instance_id="$1"
     local message="$2"
     local force_send="${3:-false}"
+    local add_sender_id="${4:-true}"
     local session_name="q_instance_$instance_id"
     local timestamp=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
     
@@ -284,10 +298,27 @@ send_message_to_instance() {
         return 1
     fi
     
+    # 添加发送者标识（如果启用）
+    local final_message="$message"
+    if [[ "$add_sender_id" == "true" ]]; then
+        final_message=$(add_sender_id_to_message "$message")
+    fi
+    
     # 发送消息到tmux会话
-    tmux send-keys -t "$session_name" "$message" Enter
+    tmux send-keys -t "$session_name" "$final_message" Enter
     
     echo "✓ 消息已发送到实例 $instance_id: $message"
+    
+    # 记录发送者追踪信息
+    if [[ "$add_sender_id" == "true" ]]; then
+        local sender_info=$(get_sender_info)
+        local namespace=$(get_instance_namespace "$instance_id")
+        if [[ -z "$namespace" ]]; then
+            namespace="$CLIEXTRA_DEFAULT_NS"
+        fi
+        local receiver_info="$namespace:$instance_id"
+        record_sender_tracking "$sender_info" "$receiver_info" "$message"
+    fi
     
     # 自动设置接收实例状态为 busy
     local namespace=$(get_instance_namespace "$instance_id")
@@ -300,7 +331,7 @@ send_message_to_instance() {
     fi
     
     # 记录对话
-    record_conversation "$instance_id" "$message" "external" "$timestamp"
+    record_conversation "$instance_id" "$final_message" "external" "$timestamp"
     
     # 更新namespace缓存
     local instance_dir=$(find_instance_info_dir "$instance_id")
@@ -333,6 +364,7 @@ INSTANCE_ID=""
 MESSAGE=""
 FORCE_SEND=false
 WAIT_IDLE=false
+ADD_SENDER_ID=true
 
 # 解析命令行参数
 while [[ $# -gt 0 ]]; do
@@ -343,6 +375,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --wait-idle)
             WAIT_IDLE=true
+            shift
+            ;;
+        --no-sender-id)
+            ADD_SENDER_ID=false
+            shift
+            ;;
+        --sender-id)
+            ADD_SENDER_ID=true
             shift
             ;;
         --help|-h)
@@ -391,4 +431,4 @@ if [[ "$WAIT_IDLE" == "true" ]]; then
 fi
 
 # 发送消息
-send_message_to_instance "$INSTANCE_ID" "$MESSAGE" "$FORCE_SEND"
+send_message_to_instance "$INSTANCE_ID" "$MESSAGE" "$FORCE_SEND" "$ADD_SENDER_ID"
