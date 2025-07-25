@@ -104,32 +104,6 @@ chmod +x /usr/local/bin/qq
 
 ### 📟 命令行管理
 
-### 项目初始化
-
-```bash
-# 分析当前目录项目并生成项目描述
-qq init ./
-
-# 分析当前目录项目并指定项目名
-qq init ./ myproject
-
-# 使用指定 namespace 的 system 实例分析
-qq init ./ myproject -n frontend
-
-# 分析指定目录项目
-qq init /path/to/project
-
-# 分析远程项目（先克隆再分析）
-qq init https://github.com/user/repo.git
-```
-
-**功能特点**:
-- 🔍 **智能分析**: 自动分析项目结构、技术栈、架构模式
-- 📝 **生成文档**: 创建详细的 `.amazonq/rules/project.md` 项目描述文件
-- 🎯 **角色建议**: 基于项目特点推荐合适的开发人员(agent)配置
-- 🚀 **快速上手**: 提供启动命令示例和开发建议
-- 🤖 **System 实例**: 使用 namespace 的 system 实例执行分析，无需临时实例
-
 ### 启动实例
 
 ```bash

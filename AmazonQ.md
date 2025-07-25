@@ -1,4 +1,43 @@
-每次功能完成后记得更新 readme.md 文件；
+每次功能完成后记得更新 README.md 文件；
+
+## 2025-07-25 移除 qq init 功能
+
+### 🗑️ 功能移除
+移除了 `qq init` 项目初始化功能，简化系统架构。
+
+#### 移除的内容
+1. **主脚本**: 移除 `cliExtra.sh` 中的 init 命令处理逻辑
+2. **帮助信息**: 移除帮助文档中的 init 相关说明和示例
+3. **README.md**: 移除项目初始化章节和相关使用示例
+4. **规则文档**: 移除 `.amazonq/rules/cliExtra.md` 中的 init 相关内容
+
+#### 移除原因
+- **简化架构**: 专注于核心的实例管理和协作功能
+- **减少复杂性**: 避免功能重叠和维护负担
+- **用户反馈**: 用户更多使用 start 功能而非 init 功能
+
+#### 影响范围
+- ✅ 不影响现有实例的运行
+- ✅ 不影响其他核心功能
+- ✅ 用户可以直接使用 `qq start` 启动实例
+- ✅ 保持向后兼容性
+
+#### 替代方案
+用户可以使用以下方式替代原有的 init 功能：
+```bash
+# 原来的 init 功能
+# qq init ./
+
+# 现在使用 start 功能
+qq start --name myproject
+```
+
+### 📋 清理完成
+- ✅ 移除主脚本中的 init 命令处理
+- ✅ 移除帮助信息中的 init 相关内容
+- ✅ 移除 README.md 中的项目初始化章节
+- ✅ 移除规则文档中的 init 相关说明
+- ✅ 更新快速上手示例，移除 init 步骤
 
 ## 2025-07-24 异常 Namespace 创建问题修复
 
@@ -291,51 +330,3 @@ project/.cliExtra/roles/frontend-engineer.md
 - 清晰的状态提示和反馈
 - 稳定的会话持久化
 
-## 2025-07-24 qq init 命令适配 Namespace System 实例
-
-### 功能改进
-- **移除临时实例**: 不再创建临时分析实例
-- **使用 System 实例**: 直接使用 namespace 的 system 实例执行初始化
-- **Namespace 参数**: 添加 `-n|--namespace` 参数支持
-- **输出优化**: 生成 `.amazonq/rules/project.md` 而不是 README.md
-
-### 技术实现
-1. **参数解析增强**:
-   - 添加 `-n|--namespace` 参数
-   - 默认使用 `default` namespace
-   - 支持指定任意 namespace
-
-2. **System 实例集成**:
-   - 自动检查并修复 system 实例
-   - 使用 `{namespace}_system` 实例执行分析
-   - 无需创建和清理临时实例
-
-3. **输出格式调整**:
-   - 生成项目描述文件到 `.amazonq/rules/project.md`
-   - 修改完成标记为 `PROJECT_ANALYSIS_COMPLETE`
-   - 优化 macOS grep 兼容性
-
-### 使用示例
-```bash
-# 使用默认 namespace
-qq init ./
-
-# 指定 namespace
-qq init ./ myproject -n frontend
-
-# 详细模式
-qq init ./ -n backend --verbose
-```
-
-### 测试验证
-- ✅ namespace 参数解析正常
-- ✅ system 实例自动检查和修复
-- ✅ 项目分析功能正常
-- ✅ 项目描述文件生成成功
-- ✅ macOS 兼容性修复
-
-### 用户价值
-- **简化流程**: 不再需要管理临时实例
-- **统一架构**: 与 namespace system 实例完美集成
-- **灵活配置**: 支持多 namespace 项目初始化
-- **持续交互**: 可以继续与 system 实例交互
