@@ -32,6 +32,7 @@ show_help() {
     echo "  $0 cleanup-invalid-ns        - 清理无效的namespace目录"
     echo "  $0 sender-stats [time]       - 查看发送者统计信息"
     echo "  $0 eg <command>              - 监控守护引擎管理 (start|stop|status)"
+    echo "  $0 status-engine <command>   - 状态检测引擎 (detect|batch|health)"
     echo "  $0 dag <command>             - DAG 工作流管理 (list|show|create)"
 
     echo "  $0 broadcast <message>       - 广播消息到实例"
@@ -180,6 +181,10 @@ case "${1:-}" in
     
     "eg")
         "$SCRIPT_DIR/bin/cliExtra-eg.sh" "${@:2}"
+        ;;
+    
+    "status-engine")
+        "$SCRIPT_DIR/bin/cliExtra-status-engine.sh" "${@:2}"
         ;;
     
     "dag")

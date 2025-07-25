@@ -8,6 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-config.sh"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 source "$SCRIPT_DIR/cliExtra-status-manager.sh"
+source "$SCRIPT_DIR/cliExtra-status-engine.sh"
 source "$SCRIPT_DIR/cliExtra-dag-monitor.sh"
 
 # 守护进程配置
@@ -16,62 +17,16 @@ DAEMON_PID_FILE="$CLIEXTRA_HOME/engine.pid"
 DAEMON_LOG_FILE="$CLIEXTRA_HOME/engine.log"
 DAEMON_CONFIG_FILE="$CLIEXTRA_HOME/engine.conf"
 
-# 监控配置
-MONITOR_INTERVAL=2  # 监控间隔（秒）
-LOG_TAIL_LINES=5    # 检查日志的行数
-IDLE_TIMEOUT=30     # 空闲超时时间（秒）
-SYSTEM_CHECK_INTERVAL=60  # system agent 检查间隔（秒）
+# 监控配置 - 基于时间戳检测
+MONITOR_INTERVAL=3  # 监控间隔（秒）
+DEFAULT_IDLE_THRESHOLD=5    # 默认空闲阈值（秒）
+SYSTEM_CHECK_INTERVAL=60    # system agent 检查间隔（秒）
 
 # DAG 监控配置
 DAG_MONITOR_INTERVAL=10       # DAG 监控间隔（秒）
 DAG_NODE_TIMEOUT=1800         # 节点执行超时时间（30分钟）
 DAG_INSTANCE_TIMEOUT=7200     # DAG 实例总超时时间（2小时）
 DAG_CLEANUP_INTERVAL=3600     # 清理间隔（1小时）
-
-# 用户输入等待符模式（支持多种格式）
-WAITING_PATTERNS=(
-    "> "                           # 基本提示符
-    "\\[38;5;13m> \\[39m"          # 带颜色的提示符 (你提到的格式)
-    "\\[38;5;13m>\\[39m"           # 紧凑格式
-    "\\[[0-9;]+m> \\[[0-9;]*m"     # 通用颜色提示符
-    "\\[[0-9;]+m>\\[[0-9;]*m"      # 紧凑通用格式
-    "\\[.*m> \\[.*m"               # 最宽泛的颜色匹配
-    "\\[.*m>\\[.*m"                # 紧凑最宽泛格式
-    "\\e\\[[0-9;]*m> \\e\\[[0-9;]*m"  # ANSI 转义序列格式
-    "\\033\\[[0-9;]*m> \\033\\[[0-9;]*m"  # 八进制转义序列
-    "$ "                           # Shell 提示符
-    "# "                           # Root 提示符
-    "? "                           # 问题提示符
-    "Enter"                        # 等待回车
-    "Press"                        # 等待按键
-    "Continue"                     # 等待继续
-    "Y/n"                          # 确认提示
-    "y/N"                          # 确认提示
-    "\\(y/n\\)"                    # 括号确认提示
-    "\\[Y/n\\]"                    # 方括号确认提示
-    "Please enter"                 # 请输入
-    "Input:"                       # 输入提示
-    "Choice:"                      # 选择提示
-    "Select:"                      # 选择提示
-)
-
-# 忙碌状态模式
-BUSY_PATTERNS=(
-    "Processing"
-    "Loading"
-    "Analyzing"
-    "Generating"
-    "Compiling"
-    "Building"
-    "Installing"
-    "Downloading"
-    "Uploading"
-    "Executing"
-    "Running"
-    "Working"
-    "Please wait"
-    "..."
-)
 
 # 日志函数
 log_message() {
@@ -116,73 +71,53 @@ get_active_agents() {
     printf '%s\n' "${agents[@]}"
 }
 
-# 获取 tmux 会话的最新输出
-get_session_output() {
-    local session_name="$1"
-    local lines="${2:-$LOG_TAIL_LINES}"
+# 获取 agent 的空闲阈值配置
+get_agent_threshold() {
+    local instance_id="$1"
+    local namespace=$(get_instance_namespace "$instance_id")
     
-    # 使用 tmux capture-pane 获取最新输出
-    tmux capture-pane -t "$session_name" -p -S "-$lines" 2>/dev/null || echo ""
+    if [[ -z "$namespace" ]]; then
+        namespace="$CLIEXTRA_DEFAULT_NS"
+    fi
+    
+    # 获取 namespace 特定的阈值配置
+    local threshold=$(get_threshold_for_namespace "$namespace")
+    echo "$threshold"
 }
 
-# 检查输出是否匹配等待模式
-matches_waiting_pattern() {
-    local output="$1"
-    
-    for pattern in "${WAITING_PATTERNS[@]}"; do
-        if echo "$output" | grep -qE "$pattern"; then
-            return 0
-        fi
-    done
-    return 1
-}
-
-# 检查输出是否匹配忙碌模式
-matches_busy_pattern() {
-    local output="$1"
-    
-    for pattern in "${BUSY_PATTERNS[@]}"; do
-        if echo "$output" | grep -qiE "$pattern"; then
-            return 0
-        fi
-    done
-    return 1
-}
-
-# 分析 agent 状态
+# 基于时间戳分析 agent 状态
 analyze_agent_status() {
     local instance_id="$1"
-    local session_name="q_instance_$instance_id"
+    local namespace=$(get_instance_namespace "$instance_id")
     
-    # 获取最新输出
-    local output=$(get_session_output "$session_name")
-    
-    if [[ -z "$output" ]]; then
-        log_message "DEBUG" "No output from $instance_id"
-        return 2  # 无法确定状态
+    if [[ -z "$namespace" ]]; then
+        namespace="$CLIEXTRA_DEFAULT_NS"
     fi
     
-    # 检查是否在等待用户输入
-    if matches_waiting_pattern "$output"; then
-        log_message "DEBUG" "Agent $instance_id is waiting for input"
-        return 0  # 空闲状态
-    fi
+    # 获取阈值配置
+    local threshold=$(get_agent_threshold "$instance_id")
     
-    # 检查是否在忙碌处理
-    if matches_busy_pattern "$output"; then
-        log_message "DEBUG" "Agent $instance_id is busy"
-        return 1  # 忙碌状态
-    fi
+    # 使用新的时间戳检测引擎
+    local status=$(detect_instance_status_by_timestamp "$instance_id" "$namespace" "$threshold")
     
-    # 检查最后一行是否为空或只有提示符
-    local last_line=$(echo "$output" | tail -n 1 | xargs)
-    if [[ -z "$last_line" ]] || [[ "$last_line" == ">" ]] || [[ "$last_line" == "$" ]] || [[ "$last_line" == "#" ]]; then
-        log_message "DEBUG" "Agent $instance_id appears idle (empty/prompt line)"
-        return 0  # 空闲状态
-    fi
-    
-    log_message "DEBUG" "Agent $instance_id status unclear, keeping current state"
-    return 2  # 无法确定，保持当前状态
+    case "$status" in
+        "idle")
+            log_message "DEBUG" "Agent $instance_id is idle (threshold: ${threshold}s)"
+            return 0  # 空闲状态
+            ;;
+        "busy")
+            log_message "DEBUG" "Agent $instance_id is busy (threshold: ${threshold}s)"
+            return 1  # 忙碌状态
+            ;;
+        "unknown")
+            log_message "DEBUG" "Agent $instance_id status unknown"
+            return 2  # 无法确定状态
+            ;;
+        *)
+            log_message "WARN" "Agent $instance_id returned unexpected status: $status"
+            return 2  # 无法确定状态
+            ;;
+    esac
 }
 
 # 更新 agent 状态
@@ -400,13 +335,20 @@ show_help() {
     echo "  --daemon  守护进程模式（内部使用）"
     echo ""
     echo "功能:"
-    echo "  - 自动监控所有 agent 的 tmux 终端输出"
-    echo "  - 检测用户输入等待符（如 '> '）判断空闲状态"
-    echo "  - 检测忙碌关键词判断工作状态"
+    echo "  - 基于文件时间戳的高效状态检测"
+    echo "  - 监控 tmux.log 文件修改时间判断 agent 活跃度"
     echo "  - 自动更新 agent 状态文件（0=idle, 1=busy）"
+    echo "  - 支持按 namespace 配置不同的空闲阈值"
+    echo "  - 跨平台兼容（macOS/Linux）"
+    echo ""
+    echo "检测原理:"
+    echo "  - 空闲检测: tmux.log 文件超过阈值时间未更新"
+    echo "  - 忙碌检测: tmux.log 文件在阈值时间内有更新"
+    echo "  - 默认阈值: ${DEFAULT_IDLE_THRESHOLD}秒"
     echo ""
     echo "配置:"
     echo "  监控间隔: ${MONITOR_INTERVAL}s"
+    echo "  默认阈值: ${DEFAULT_IDLE_THRESHOLD}s"
     echo "  日志文件: $DAEMON_LOG_FILE"
     echo "  PID文件: $DAEMON_PID_FILE"
     echo ""
