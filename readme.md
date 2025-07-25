@@ -124,11 +124,22 @@ qq start --name backend --role backend  # 启动并应用后端工程师角色
 
 ### 监控守护进程
 
-cliExtra 提供了智能监控守护进程，可以自动检测 agent 的工作状态并更新状态文件。
+cliExtra 提供了智能监控守护进程，基于文件时间戳自动检测 agent 的工作状态并更新状态文件。
+
+#### 🔧 新一代状态检测技术
+
+**基于时间戳的监控方案**：
+- **检测原理**: 监控 tmux.log 文件的最后修改时间
+- **空闲判断**: 文件超过阈值时间未更新 → 设置为 idle
+- **忙碌判断**: 文件在阈值时间内有更新 → 设置为 busy
+- **零误判**: 基于实际输出变化，不受内容格式影响
+- **高性能**: stat系统调用比文本解析效率高数倍
+- **自适应**: 自动适应所有AI agent的输出格式
 
 #### 功能特点
-- **自动监控**: 监控所有 agent 的 tmux 终端输出
-- **智能检测**: 识别用户输入等待符判断空闲状态
+- **智能检测**: 基于文件时间戳，避免复杂的文本模式匹配
+- **跨平台兼容**: 支持 macOS 和 Linux 系统
+- **配置灵活**: 支持按 namespace 设置不同的空闲阈值
 - **状态更新**: 自动更新 agent 状态文件（0=idle, 1=busy）
 - **后台运行**: 守护进程模式，不影响正常使用
 
@@ -149,20 +160,33 @@ qq wf restart
 
 # 停止监控
 qq wf stop
+
+# 状态检测引擎
+qq status-engine health          # 健康检查
+qq status-engine detect <id>     # 检测单个实例状态
+qq status-engine batch           # 批量检测所有实例
+qq status-engine set-threshold <ns> <seconds>  # 设置namespace阈值
 ```
 
 #### 检测规则
 
-**空闲状态检测**（自动设置为 idle）：
-- 基本提示符：`> `, `$ `, `# `
-- 带颜色提示符：`[38;5;13m> [39m`（你提到的格式）
-- 等待输入：`Enter`, `Press`, `Y/n`, `Please enter`
-- 选择提示：`Choice:`, `Select:`, `Input:`
+**基于时间戳的状态检测**：
+- **空闲状态**: tmux.log 文件超过阈值时间（默认5秒）未更新
+- **忙碌状态**: tmux.log 文件在阈值时间内有更新
+- **默认阈值**: 5秒（可按 namespace 自定义）
+- **场景阈值**: 
+  - 交互式对话: 5秒
+  - 批处理任务: 30秒
+  - 开发调试: 10秒
 
-**忙碌状态检测**（自动设置为 busy）：
-- 处理关键词：`Processing`, `Loading`, `Analyzing`
-- 工作关键词：`Generating`, `Building`, `Working`
-- 等待提示：`Please wait`, `...`
+**阈值配置**：
+```bash
+# 设置 namespace 特定阈值
+qq status-engine set-threshold frontend 3
+
+# 查看 namespace 阈值配置
+qq status-engine get-threshold frontend
+```
 
 #### 监控日志示例
 ```

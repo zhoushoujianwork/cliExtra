@@ -629,7 +629,7 @@ EOF
     sync_rules_to_project "$project_dir"
     
     # 安装默认工具
-    install_default_tools "$project_dir"
+    # install_default_tools "$project_dir"
     
     # 准备角色定义
     local role_file=""

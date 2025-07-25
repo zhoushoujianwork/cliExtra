@@ -157,6 +157,52 @@ get_instance_status_detail() {
 }
 
 # 监控单个实例并更新状态文件
+# 状态变化钩子函数
+# 当实例状态发生变化时调用，可以执行自定义操作
+status_change_hook() {
+    local instance_id="$1"
+    local namespace="$2"
+    local old_status="$3"  # idle/busy
+    local new_status="$4"  # idle/busy
+    local timestamp="$5"   # 变化时间戳
+    
+    # 预留钩子：可以在这里添加状态变化时的主动操作
+    # 例如：
+    # - 发送通知
+    # - 更新外部系统
+    # - 触发工作流
+    # - 记录统计信息
+    # - 执行清理操作
+    
+    # 示例：记录状态变化日志（可选）
+    if [[ "${CLIEXTRA_DEBUG:-}" == "true" ]]; then
+        # 如果在守护进程中，使用 log_message 函数
+        if declare -f log_message > /dev/null 2>&1; then
+            log_message "DEBUG" "[HOOK] Instance $instance_id ($namespace): $old_status -> $new_status"
+        else
+            echo "[$(date '+%Y-%m-%d %H:%M:%S')] [HOOK] Instance $instance_id ($namespace): $old_status -> $new_status" >&2
+        fi
+    fi
+    
+    # 示例：状态变化统计（可选）
+    # local stats_file="$CLIEXTRA_HOME/status_changes.log"
+    # echo "$(date '+%Y-%m-%d %H:%M:%S'),$namespace,$instance_id,$old_status,$new_status" >> "$stats_file"
+    
+    # 示例：特定状态的处理（可选）
+    case "$new_status" in
+        "busy")
+            # 实例变为忙碌时的操作
+            # echo "Instance $instance_id is now busy" >&2
+            ;;
+        "idle")
+            # 实例变为空闲时的操作
+            # echo "Instance $instance_id is now idle" >&2
+            ;;
+    esac
+    
+    return 0
+}
+
 monitor_instance_by_timestamp() {
     local instance_id="$1"
     local namespace="${2:-$CLIEXTRA_DEFAULT_NS}"
@@ -176,7 +222,14 @@ monitor_instance_by_timestamp() {
     # 如果状态发生变化，更新状态文件
     if [[ "$current_status_code" != "$new_status_code" ]]; then
         if update_status_file "$instance_id" "$new_status_code" "$namespace"; then
-            echo "Updated $instance_id: $(status_to_name "$current_status_code") -> $new_status"
+            local old_status=$(status_to_name "$current_status_code")
+            local change_timestamp=$(get_current_timestamp)
+            
+            echo "Updated $instance_id: $old_status -> $new_status"
+            
+            # 调用状态变化钩子函数
+            status_change_hook "$instance_id" "$namespace" "$old_status" "$new_status" "$change_timestamp"
+            
             return 0
         else
             echo "Failed to update $instance_id status" >&2

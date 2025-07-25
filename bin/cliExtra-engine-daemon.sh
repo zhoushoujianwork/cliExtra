@@ -137,8 +137,16 @@ update_agent_status() {
     # 如果状态发生变化，更新状态文件
     if [[ "$current_status" != "$new_status" ]]; then
         if update_status_file "$instance_id" "$new_status" "$namespace"; then
-            local status_name=$(status_to_name "$new_status")
-            log_message "INFO" "Updated agent $instance_id status: $current_status -> $new_status ($status_name)"
+            local old_status_name=$(status_to_name "$current_status")
+            local new_status_name=$(status_to_name "$new_status")
+            local change_timestamp=$(date +%s)
+            
+            log_message "INFO" "Updated agent $instance_id status: $current_status -> $new_status ($new_status_name)"
+            
+            # 调用状态变化钩子函数（如果存在）
+            if declare -f status_change_hook > /dev/null 2>&1; then
+                status_change_hook "$instance_id" "$namespace" "$old_status_name" "$new_status_name" "$change_timestamp"
+            fi
         else
             log_message "ERROR" "Failed to update agent $instance_id status"
         fi
