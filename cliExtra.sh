@@ -22,7 +22,6 @@ show_help() {
     echo "  $0 stop <instance_id|all>    - 停止指定实例或所有实例"
     echo "  $0 list [instance_id] [-o json] - 列出所有实例或显示指定实例详情"
     echo "  $0 status [instance_id] [options] - 实例状态管理 (idle|busy|waiting|error)"
-    echo "  $0 task <command> [options]   - 任务状态管理 (complete|start|pause|error)"
     echo "  $0 logs <instance_id> [lines] - 查看实例日志"
     echo "  $0 monitor <instance_id>     - 实时监控实例输出"
     echo "  $0 clean <instance_id|all>   - 清理实例（支持--namespace）"
@@ -85,10 +84,6 @@ show_help() {
   $0 status -n frontend        # 显示 frontend namespace 实例状态
   $0 status --cleanup          # 清理过期状态文件"
 
-    echo "  $0 task complete             # 当前实例任务完成，设置为空闲"
-    echo "  $0 task complete backend-api # 指定实例任务完成"
-    echo "  $0 task start --task \"开发新功能\" # 开始新任务，设置为忙碌"
-
     echo "  $0 tools add git             # 添加git工具到当前项目"
     echo "  $0 replay instance backend-api  # 回放backend-api实例的对话"
     echo ""
@@ -150,9 +145,6 @@ case "${1:-}" in
         ;;
     "status")
         "$SCRIPT_DIR/bin/cliExtra-status.sh" "${@:2}"
-        ;;
-    "task")
-        "$SCRIPT_DIR/bin/cliExtra-task.sh" "${@:2}"
         ;;
     "logs")
         "$SCRIPT_DIR/bin/cliExtra-logs.sh" "${@:2}"
