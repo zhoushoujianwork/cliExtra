@@ -235,53 +235,204 @@ trigger_next_dag_node() {
     # 读取工作流定义
     local workflow_file=$(jq -r '.workflow_file' "$dag_file")
     if [[ ! -f "$workflow_file" ]]; then
+        echo "❌ 工作流定义文件不存在: $workflow_file"
         return 1
     fi
     
-    # 查找下一个节点（简化版本，实际需要根据工作流图结构）
-    local next_node=""
-    case "$completed_node" in
-        "backend_dev")
-            next_node="frontend_review"
-            ;;
-        "frontend_review")
-            next_node="devops_deploy"
-            ;;
-        *)
-            # 没有下一个节点
-            return 0
-            ;;
-    esac
+    # 从工作流定义中查找下一个节点
+    local next_nodes=$(jq -r --arg from "$completed_node" '.edges[] | select(.from == $from) | .to' "$workflow_file" 2>/dev/null)
     
-    if [[ -n "$next_node" ]]; then
-        # 更新当前节点
-        local temp_file=$(mktemp)
-        jq --arg next_node "$next_node" \
-           --arg timestamp "$(date -Iseconds)" \
-           '.current_nodes = (.current_nodes + [$next_node] | unique) |
-            .message_tracking += [{
-                "timestamp": $timestamp,
-                "sender": "system:dag",
-                "action": "node_triggered",
-                "message": ("自动触发下一个节点: " + $next_node),
-                "dag_context": {
-                    "node_id": $next_node,
-                    "status": "triggered"
-                }
-            }]' "$dag_file" > "$temp_file"
+    if [[ -z "$next_nodes" ]]; then
+        echo "📋 节点 $completed_node 没有下一个节点，可能是工作流结束"
         
-        if [[ $? -eq 0 ]]; then
-            mv "$temp_file" "$dag_file"
-            
-            # 发送任务分配消息（这里需要实现具体的消息发送逻辑）
-            echo "🔄 DAG 自动触发下一个节点: $next_node"
-            return 0
-        else
-            rm -f "$temp_file"
+        # 检查是否是结束节点
+        local is_end_node=$(jq -r --arg node "$completed_node" '.nodes[$node].type == "end"' "$workflow_file" 2>/dev/null)
+        if [[ "$is_end_node" == "true" ]]; then
+            # 更新 DAG 状态为完成
+            update_dag_status "$dag_file" "completed"
+            echo "🎉 工作流已完成！"
         fi
+        
+        return 0
     fi
     
-    return 1
+    # 处理多个下一节点（通常只有一个，除非有条件分支）
+    echo "$next_nodes" | while read -r next_node; do
+        if [[ -n "$next_node" ]]; then
+            echo "🔄 触发下一个节点: $next_node"
+            
+            # 更新 DAG 状态，添加下一个节点到当前节点列表
+            local temp_file=$(mktemp)
+            jq --arg next_node "$next_node" \
+               --arg timestamp "$(date -Iseconds)" \
+               '.current_nodes = (.current_nodes + [$next_node] | unique) |
+                .message_tracking += [{
+                    "timestamp": $timestamp,
+                    "sender": "system:dag",
+                    "action": "node_triggered",
+                    "message": ("自动触发下一个节点: " + $next_node),
+                    "dag_context": {
+                        "node_id": $next_node,
+                        "status": "triggered"
+                    }
+                }]' "$dag_file" > "$temp_file"
+            
+            if [[ $? -eq 0 ]]; then
+                mv "$temp_file" "$dag_file"
+                
+                # 发送任务分配消息
+                send_task_assignment_message "$dag_file" "$next_node" "$completed_node"
+                
+                echo "✓ 节点 $next_node 已触发"
+            else
+                rm -f "$temp_file"
+                echo "❌ 更新 DAG 状态失败"
+            fi
+        fi
+    done
+}
+
+# 更新 DAG 整体状态
+update_dag_status() {
+    local dag_file="$1"
+    local new_status="$2"
+    
+    local temp_file=$(mktemp)
+    jq --arg status "$new_status" \
+       --arg timestamp "$(date -Iseconds)" \
+       '.status = $status |
+        .completed_at = $timestamp |
+        .message_tracking += [{
+            "timestamp": $timestamp,
+            "sender": "system:dag",
+            "action": "workflow_completed",
+            "message": "工作流执行完成",
+            "dag_context": {
+                "final_status": $status
+            }
+        }]' "$dag_file" > "$temp_file"
+    
+    if [[ $? -eq 0 ]]; then
+        mv "$temp_file" "$dag_file"
+        return 0
+    else
+        rm -f "$temp_file"
+        return 1
+    fi
+}
+
+# 发送任务分配消息
+send_task_assignment_message() {
+    local dag_file="$1"
+    local next_node="$2"
+    local completed_node="$3"
+    
+    # 读取工作流定义
+    local workflow_file=$(jq -r '.workflow_file' "$dag_file")
+    local dag_namespace=$(jq -r '.namespace' "$dag_file")
+    
+    # 获取下一个节点的信息
+    local node_info=$(jq -r --arg node "$next_node" '.nodes[$node]' "$workflow_file" 2>/dev/null)
+    local node_owner=$(echo "$node_info" | jq -r '.owner // empty' 2>/dev/null)
+    local node_title=$(echo "$node_info" | jq -r '.title // empty' 2>/dev/null)
+    
+    if [[ -z "$node_owner" ]]; then
+        echo "⚠️ 节点 $next_node 没有指定 owner，跳过消息发送"
+        return 0
+    fi
+    
+    # 查找对应角色的实例
+    local target_instances=$(find_instances_by_role "$node_owner" "$dag_namespace")
+    
+    if [[ -z "$target_instances" ]]; then
+        echo "⚠️ 未找到角色 $node_owner 的实例，无法发送任务分配消息"
+        return 0
+    fi
+    
+    # 获取完成节点的交付物信息（如果有）
+    local completed_node_info=$(jq -r --arg node "$completed_node" '.nodes[$node]' "$workflow_file" 2>/dev/null)
+    local deliverables=$(echo "$completed_node_info" | jq -r '.deliverables[]? // empty' 2>/dev/null | tr '\n' ', ' | sed 's/,$//')
+    
+    # 构建任务分配消息
+    local message="🎯 新任务分配：$node_title
+
+📋 任务详情：
+- 节点ID: $next_node
+- 负责角色: $node_owner
+- 前置任务: $completed_node 已完成"
+    
+    if [[ -n "$deliverables" ]]; then
+        message="$message
+- 前置交付: $deliverables"
+    fi
+    
+    message="$message
+
+🚀 请开始处理此任务，完成后请发送完成消息。
+
+💡 提示：完成后可以使用类似 \"$node_title 已完成\" 的消息通知系统。"
+    
+    # 发送消息到目标实例
+    echo "$target_instances" | while read -r instance_id; do
+        if [[ -n "$instance_id" ]]; then
+            echo "📤 发送任务分配消息到实例: $instance_id"
+            
+            # 使用 send 命令发送消息，禁用 DAG 钩子避免递归
+            DISABLE_DAG_HOOKS=true "$SCRIPT_DIR/cliExtra-send.sh" "$instance_id" "$message" --force --no-sender-id 2>/dev/null
+            
+            if [[ $? -eq 0 ]]; then
+                echo "✓ 任务分配消息已发送到 $instance_id"
+            else
+                echo "❌ 发送任务分配消息失败: $instance_id"
+            fi
+        fi
+    done
+}
+
+# 根据角色查找实例
+find_instances_by_role() {
+    local role="$1"
+    local namespace="${2:-$CLIEXTRA_DEFAULT_NS}"
+    
+    # 查找所有实例
+    local instances_dir="$CLIEXTRA_HOME/namespaces/$namespace/instances"
+    local matching_instances=()
+    
+    if [[ -d "$instances_dir" ]]; then
+        for instance_dir in "$instances_dir"/instance_*; do
+            if [[ -d "$instance_dir" ]]; then
+                local instance_id=$(basename "$instance_dir" | sed 's/^instance_//')
+                local instance_role=$(get_instance_role "$instance_id" "$namespace")
+                
+                # 匹配角色
+                if [[ "$instance_role" == "$role" ]]; then
+                    matching_instances+=("$instance_id")
+                elif [[ -z "$instance_role" ]]; then
+                    # 如果没有角色信息，尝试从实例名称推断
+                    case "$instance_id" in
+                        *backend*) 
+                            if [[ "$role" == "backend" ]]; then
+                                matching_instances+=("$instance_id")
+                            fi
+                            ;;
+                        *frontend*)
+                            if [[ "$role" == "frontend" ]]; then
+                                matching_instances+=("$instance_id")
+                            fi
+                            ;;
+                        *devops*)
+                            if [[ "$role" == "devops" ]]; then
+                                matching_instances+=("$instance_id")
+                            fi
+                            ;;
+                    esac
+                fi
+            fi
+        done
+    fi
+    
+    # 输出匹配的实例
+    printf '%s\n' "${matching_instances[@]}"
 }
 
 # 主要的 DAG 钩子函数 - 在消息发送时调用

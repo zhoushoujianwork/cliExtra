@@ -322,22 +322,25 @@ send_message_to_instance() {
     fi
     
     # DAG 钩子：检测任务完成消息并更新 DAG 状态
-    local sender_info=$(get_sender_info)
-    local sender_id=$(echo "$sender_info" | cut -d':' -f2)
-    
-    # 临时测试：如果设置了 SENDER_INSTANCE_ID 环境变量，使用它作为发送者
-    if [[ -n "$SENDER_INSTANCE_ID" ]]; then
-        sender_id="$SENDER_INSTANCE_ID"
-        echo "🔍 使用测试发送者: $sender_id"
+    # 检查是否禁用 DAG 钩子（避免递归调用）
+    if [[ "$DISABLE_DAG_HOOKS" != "true" ]]; then
+        local sender_info=$(get_sender_info)
+        local sender_id=$(echo "$sender_info" | cut -d':' -f2)
+        
+        # 临时测试：如果设置了 SENDER_INSTANCE_ID 环境变量，使用它作为发送者
+        if [[ -n "$SENDER_INSTANCE_ID" ]]; then
+            sender_id="$SENDER_INSTANCE_ID"
+            echo "🔍 使用测试发送者: $sender_id"
+        fi
+        
+        local receiver_namespace=$(get_instance_namespace "$instance_id")
+        if [[ -z "$receiver_namespace" ]]; then
+            receiver_namespace="$CLIEXTRA_DEFAULT_NS"
+        fi
+        
+        # 调用 DAG 钩子
+        dag_send_hook "$sender_id" "$instance_id" "$message" "$receiver_namespace"
     fi
-    
-    local receiver_namespace=$(get_instance_namespace "$instance_id")
-    if [[ -z "$receiver_namespace" ]]; then
-        receiver_namespace="$CLIEXTRA_DEFAULT_NS"
-    fi
-    
-    # 调用 DAG 钩子
-    dag_send_hook "$sender_id" "$instance_id" "$message" "$receiver_namespace"
     
     # 自动设置接收实例状态为 busy
     local namespace=$(get_instance_namespace "$instance_id")
