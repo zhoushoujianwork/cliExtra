@@ -275,43 +275,45 @@ health_check() {
     fi
 }
 
-# 命令行接口
-case "${1:-}" in
-    "detect")
-        detect_instance_status_by_timestamp "$2" "$3" "$4"
-        ;;
-    "batch")
-        batch_detect_status "$2" "$3"
-        ;;
-    "detail")
-        get_instance_status_detail "$2" "$3" "$4"
-        ;;
-    "monitor")
-        monitor_instance_by_timestamp "$2" "$3" "$4"
-        ;;
-    "set-threshold")
-        set_threshold_for_namespace "$2" "$3"
-        ;;
-    "get-threshold")
-        get_threshold_for_namespace "$2"
-        ;;
-    "benchmark")
-        benchmark_detection "$2" "$3" "$4"
-        ;;
-    "health")
-        health_check "$2"
-        ;;
-    *)
-        echo "用法: $0 <command> [args...]"
-        echo ""
-        echo "命令:"
-        echo "  detect <instance_id> [namespace] [threshold]  - 检测实例状态"
-        echo "  batch [namespace] [threshold]                 - 批量检测状态"
-        echo "  detail <instance_id> [namespace] [threshold]  - 获取详细状态信息"
-        echo "  monitor <instance_id> [namespace] [threshold] - 监控并更新状态"
-        echo "  set-threshold <namespace> <threshold>         - 设置namespace阈值"
-        echo "  get-threshold <namespace>                     - 获取namespace阈值"
-        echo "  benchmark <instance_id> [namespace] [count]  - 性能测试"
-        echo "  health [namespace]                            - 健康检查"
-        ;;
-esac
+# 命令行接口（只在直接执行时运行）
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+    case "${1:-}" in
+        "detect")
+            detect_instance_status_by_timestamp "$2" "$3" "$4"
+            ;;
+        "batch")
+            batch_detect_status "$2" "$3"
+            ;;
+        "detail")
+            get_instance_status_detail "$2" "$3" "$4"
+            ;;
+        "monitor")
+            monitor_instance_by_timestamp "$2" "$3" "$4"
+            ;;
+        "set-threshold")
+            set_threshold_for_namespace "$2" "$3"
+            ;;
+        "get-threshold")
+            get_threshold_for_namespace "$2"
+            ;;
+        "benchmark")
+            benchmark_detection "$2" "$3" "$4"
+            ;;
+        "health")
+            health_check "$2"
+            ;;
+        *)
+            echo "用法: $0 <command> [args...]"
+            echo ""
+            echo "命令:"
+            echo "  detect <instance_id> [namespace] [threshold]  - 检测实例状态"
+            echo "  batch [namespace] [threshold]                 - 批量检测状态"
+            echo "  detail <instance_id> [namespace] [threshold]  - 获取详细状态信息"
+            echo "  monitor <instance_id> [namespace] [threshold] - 监控并更新状态"
+            echo "  set-threshold <namespace> <threshold>         - 设置namespace阈值"
+            echo "  get-threshold <namespace>                     - 获取namespace阈值"
+            echo "  benchmark <instance_id> [namespace] [count]  - 性能测试"
+            echo "  health [namespace]                            - 健康检查"
+            ;;
+    esac
+fi

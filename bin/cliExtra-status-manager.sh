@@ -8,9 +8,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-config.sh"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 
-# 状态值定义
-readonly STATUS_IDLE=0
-readonly STATUS_BUSY=1
+# 状态值定义（避免重复定义）
+if [[ -z "${STATUS_IDLE:-}" ]]; then
+    readonly STATUS_IDLE=0
+fi
+if [[ -z "${STATUS_BUSY:-}" ]]; then
+    readonly STATUS_BUSY=1
+fi
 
 # 状态值到名称的映射
 status_to_name() {
