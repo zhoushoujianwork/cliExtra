@@ -178,40 +178,10 @@ qq wf stop
 - **PID文件**: `~/Library/Application Support/cliExtra/watcher.pid`
 - **检查行数**: 检查终端输出的最后5行
 
-### 实例状态管理
-
-```bash
-# 查看实例状态
-qq status                           # 显示 default namespace 所有实例状态
-qq status myinstance                # 查看指定实例状态
-qq status -A                        # 显示所有 namespace 实例状态
-qq status -n frontend               # 显示 frontend namespace 实例状态
-qq status -o json                   # JSON格式输出
-
-# 设置实例状态
-qq status myinstance --set busy     # 设置实例为忙碌状态
-qq status myinstance --set busy --task "处理用户请求"  # 设置状态和任务描述
-qq status myinstance --set idle     # 设置实例为空闲状态
-qq status myinstance --set waiting  # 设置实例为等待状态
-qq status myinstance --set error    # 设置实例为错误状态
-
-# 清理过期状态文件
-qq status --cleanup                 # 清理过期状态文件 (默认30分钟)
-qq status --cleanup --timeout 60    # 清理60分钟无活动的状态文件
-```
-
-**状态值说明**:
-- `idle` - 空闲，可接收新任务
-- `busy` - 忙碌，正在处理任务
-- `waiting` - 等待用户输入或外部响应
-- `error` - 错误状态，需要人工干预
-
-**状态文件位置**: `~/Library/Application Support/cliExtra/namespaces/<namespace>/status/<instance_id>.status`
-
 ### 实例管理
 
 ```bash
-# 列出默认namespace的实例（简洁格式，每行一个实例ID）
+# 列出默认namespace的实例（简洁格式，每行一个实例ID，包含状态信息）
 qq list
 
 # 列出所有namespace的实例（使用 -A 或 --all 参数）
@@ -228,14 +198,11 @@ qq list -o json
 # 列出所有namespace的实例（JSON格式）
 qq list -A -o json
 
-# 显示指定实例的详细信息（包含namespace）
+# 显示指定实例的详细信息（包含namespace和状态）
 qq list myinstance
 
-# 显示指定实例的详细信息（JSON格式，包含namespace）
+# 显示指定实例的详细信息（JSON格式，包含namespace和状态）
 qq list myinstance -o json
-
-# 查看实例状态
-qq status myproject
 
 # 发送消息到实例
 qq send myproject "你好，Q!"
@@ -267,7 +234,12 @@ qq clean all --dry-run
 qq clean all --namespace backend --dry-run
 ```
 
+**实例状态说明**:
+- `idle` - 空闲，可接收新任务
+- `busy` - 忙碌，正在处理任务  
+- `stopped` - 实例已停止
 
+**状态文件位置**: `~/Library/Application Support/cliExtra/namespaces/<namespace>/status/<instance_id>.status`
 
 ### 配置管理
 

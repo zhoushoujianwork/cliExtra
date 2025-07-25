@@ -5,6 +5,7 @@
 # 加载公共函数
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-common.sh"
+source "$SCRIPT_DIR/cliExtra-status-manager.sh"
 
 # 显示帮助
 show_help() {
@@ -234,15 +235,19 @@ get_instance_details() {
     local status="Not Running"
     local session_name="q_instance_$instance_id"
     
+    # 检查 tmux 会话是否存在（用于判断实例是否运行）
     if tmux has-session -t "$session_name" 2>/dev/null; then
         session_info="$session_name"
-        # 检查会话是否有客户端连接
-        local client_count=$(tmux list-clients -t "$session_name" 2>/dev/null | wc -l)
-        if [ "$client_count" -gt 0 ]; then
-            status="Attached"
+        # 获取实例的工作状态（idle/busy）而不是 tmux 连接状态
+        local instance_status=$(get_instance_status "$instance_id" "$namespace")
+        if [[ -n "$instance_status" ]]; then
+            status="$instance_status"
         else
-            status="Detached"
+            status="idle"  # 默认为空闲状态
         fi
+    else
+        # 会话不存在，实例已停止
+        status="stopped"
     fi
     
     # 获取日志文件大小和最后修改时间
@@ -294,14 +299,15 @@ get_all_instances() {
                         local instance_id=$(basename "$instance_dir" | sed 's/instance_//')
                         local session_name="q_instance_$instance_id"
                         
-                        # 检查tmux会话状态
-                        local status="Not Running"
+                        # 检查实例状态
+                        local status="stopped"
                         if tmux has-session -t "$session_name" 2>/dev/null; then
-                            local client_count=$(tmux list-clients -t "$session_name" 2>/dev/null | wc -l)
-                            if [ "$client_count" -gt 0 ]; then
-                                status="Attached"
+                            # 获取实例的工作状态（idle/busy）
+                            local instance_status=$(get_instance_status "$instance_id" "$current_ns")
+                            if [[ -n "$instance_status" ]]; then
+                                status="$instance_status"
                             else
-                                status="Detached"
+                                status="idle"  # 默认为空闲状态
                             fi
                         fi
                         
@@ -347,12 +353,12 @@ get_all_instances() {
                     fi
                 fi
                 
-                # 检查会话状态
-                local client_count=$(tmux list-clients -t "$session_info" 2>/dev/null | wc -l)
-                if [ "$client_count" -gt 0 ]; then
-                    status="Attached"
+                # 获取实例的工作状态（idle/busy）
+                local instance_status=$(get_instance_status "$instance_id" "$namespace")
+                if [[ -n "$instance_status" ]]; then
+                    status="$instance_status"
                 else
-                    status="Detached"
+                    status="idle"  # 默认为空闲状态
                 fi
                 
                 instances+=("$instance_id")

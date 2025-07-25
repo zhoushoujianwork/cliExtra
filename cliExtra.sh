@@ -20,8 +20,7 @@ show_help() {
     echo "  $0 attach <instance_id>      - 接管指定实例终端"
     echo "  $0 replay <type> <target>    - 回放对话记录"
     echo "  $0 stop <instance_id|all>    - 停止指定实例或所有实例"
-    echo "  $0 list [instance_id] [-o json] - 列出所有实例或显示指定实例详情"
-    echo "  $0 status [instance_id] [options] - 实例状态管理 (idle|busy|waiting|error)"
+    echo "  $0 list [instance_id] [-o json] - 列出所有实例或显示指定实例详情（包含状态）"
     echo "  $0 logs <instance_id> [lines] - 查看实例日志"
     echo "  $0 monitor <instance_id>     - 实时监控实例输出"
     echo "  $0 clean <instance_id|all>   - 清理实例（支持--namespace）"
@@ -78,12 +77,11 @@ show_help() {
     echo "  $0 ns show                   # 显示所有namespace"
     echo "  $0 set-ns myinstance backend # 将实例移动到backend namespace"
     echo "  $0 broadcast \"系统维护通知\"   # 广播消息到所有实例
-  $0 status                    # 显示 default namespace 所有实例状态
-  $0 status myinstance         # 查看指定实例状态
-  $0 status myinstance --set busy --task \"处理用户请求\"  # 设置实例状态
-  $0 status -A                 # 显示所有 namespace 实例状态
-  $0 status -n frontend        # 显示 frontend namespace 实例状态
-  $0 status --cleanup          # 清理过期状态文件"
+  $0 list                      # 显示 default namespace 所有实例（包含状态）
+  $0 list myinstance           # 查看指定实例详情（包含状态）
+  $0 list -A                   # 显示所有 namespace 实例
+  $0 list -n frontend          # 显示 frontend namespace 实例
+  $0 list -o json              # JSON 格式输出"
 
     echo "  $0 eg start                  # 启动监控守护引擎"
     echo "  $0 eg status                 # 查看监控状态"
@@ -144,9 +142,6 @@ case "${1:-}" in
         ;;
     "list")
         "$SCRIPT_DIR/bin/cliExtra-list.sh" "${@:2}"
-        ;;
-    "status")
-        "$SCRIPT_DIR/bin/cliExtra-status.sh" "${@:2}"
         ;;
     "logs")
         "$SCRIPT_DIR/bin/cliExtra-logs.sh" "${@:2}"

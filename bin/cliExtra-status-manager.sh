@@ -152,6 +152,15 @@ read_status_file() {
     fi
 }
 
+# 获取实例状态名称（idle/busy）
+get_instance_status() {
+    local instance_id="$1"
+    local namespace="${2:-$CLIEXTRA_DEFAULT_NS}"
+    
+    local status_code=$(read_status_file "$instance_id" "$namespace")
+    status_to_name "$status_code"
+}
+
 # 删除状态文件
 remove_status_file() {
     local instance_id="$1"
@@ -250,3 +259,133 @@ auto_set_busy_on_broadcast() {
         return 1
     fi
 }
+
+# === 性能优化补丁 (基于前端反馈) ===
+
+# 批量状态查询优化
+batch_read_status() {
+    local namespace="${1:-$CLIEXTRA_DEFAULT_NS}"
+    local status_dir=$(get_instance_status_dir "$namespace")
+    
+    if [[ ! -d "$status_dir" ]]; then
+        echo "{}"
+        return 0
+    fi
+    
+    local result="{"
+    local first=true
+    
+    for status_file in "$status_dir"/*.status; do
+        if [[ -f "$status_file" ]]; then
+            local instance_id=$(basename "$status_file" .status)
+            local status=$(cat "$status_file" 2>/dev/null | tr -d '\n\r\t ')
+            
+            if [[ "$status" == "0" || "$status" == "1" ]]; then
+                if [[ "$first" == "true" ]]; then
+                    first=false
+                else
+                    result+=","
+                fi
+                result+="\"$instance_id\":$status"
+            fi
+        fi
+    done
+    
+    result+="}"
+    echo "$result"
+}
+
+# 状态缓存机制
+CACHE_TTL=5  # 缓存5秒
+
+get_cached_status() {
+    local instance_id="$1"
+    local namespace="${2:-$CLIEXTRA_DEFAULT_NS}"
+    local cache_key="${namespace}:${instance_id}"
+    local current_time=$(date +%s)
+    
+    if [[ -n "${STATUS_CACHE[$cache_key]}" ]]; then
+        local cache_data="${STATUS_CACHE[$cache_key]}"
+        local cache_time=$(echo "$cache_data" | cut -d: -f1)
+        local cache_status=$(echo "$cache_data" | cut -d: -f2)
+        
+        if [[ $((current_time - cache_time)) -lt $CACHE_TTL ]]; then
+            echo "$cache_status"
+            return 0
+        fi
+    fi
+    
+    # 缓存未命中，读取文件
+    local status=$(read_status_file "$instance_id" "$namespace")
+    STATUS_CACHE[$cache_key]="${current_time}:${status}"
+    echo "$status"
+}
+
+# 异步状态更新
+async_update_status() {
+    local instance_id="$1"
+    local status="$2"
+    local namespace="${3:-$CLIEXTRA_DEFAULT_NS}"
+    
+    # 后台异步更新
+    (
+        update_status_file "$instance_id" "$status" "$namespace"
+        # 清除缓存
+        local cache_key="${namespace}:${instance_id}"
+        unset STATUS_CACHE[$cache_key]
+    ) &
+}
+
+# 健康检查API
+status_health_check() {
+    local namespace="${1:-$CLIEXTRA_DEFAULT_NS}"
+    local status_dir=$(get_instance_status_dir "$namespace")
+    
+    echo "{"
+    echo "  \"namespace\": \"$namespace\","
+    echo "  \"status_dir\": \"$status_dir\","
+    echo "  \"dir_exists\": $([ -d "$status_dir" ] && echo "true" || echo "false"),"
+    echo "  \"file_count\": $(find "$status_dir" -name "*.status" 2>/dev/null | wc -l),"
+    echo "  \"cache_size\": ${#STATUS_CACHE[@]},"
+    echo "  \"timestamp\": $(date +%s)"
+    echo "}"
+}
+
+
+# === macOS兼容性修复 ===
+
+# 使用文件系统实现简单缓存
+CACHE_DIR="/tmp/cliextra_cache_$$"
+mkdir -p "$CACHE_DIR"
+
+get_cached_status_fixed() {
+    local instance_id="$1"
+    local namespace="${2:-$CLIEXTRA_DEFAULT_NS}"
+    local cache_file="$CACHE_DIR/${namespace}_${instance_id}"
+    local current_time=$(date +%s)
+    
+    if [[ -f "$cache_file" ]]; then
+        local cache_time=$(head -n1 "$cache_file")
+        local cache_status=$(tail -n1 "$cache_file")
+        
+        if [[ $((current_time - cache_time)) -lt 5 ]]; then
+            echo "$cache_status"
+            return 0
+        fi
+    fi
+    
+    # 缓存未命中，读取文件
+    local status=$(read_status_file "$instance_id" "$namespace")
+    echo "$current_time" > "$cache_file"
+    echo "$status" >> "$cache_file"
+    echo "$status"
+}
+
+# 清理缓存
+cleanup_cache() {
+    rm -rf "$CACHE_DIR"
+}
+
+# 注册清理函数
+trap cleanup_cache EXIT
+
