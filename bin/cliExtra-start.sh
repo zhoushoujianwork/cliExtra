@@ -456,9 +456,10 @@ install_default_tools() {
 prepare_role_definitions() {
     local project_dir="$1"
     local instance_id="$2"
-    local role="$2"
+    local role="$3"
+    local namespace="$4"
     local roles_source_dir="$SCRIPT_DIR/../roles"
-    local roles_target_dir="$CLIEXTRA_HOME/namespaces/$namespace/instances/$instance_id/roles"
+    local roles_target_dir="$CLIEXTRA_HOME/namespaces/$namespace/instances/instance_$instance_id/roles"
     
     # 创建目标目录
     mkdir -p "$roles_target_dir"
@@ -633,7 +634,7 @@ EOF
     # 准备角色定义
     local role_file=""
     if [ -n "$role" ] || [ -z "$context_instance" ]; then
-        role_file=$(prepare_role_definitions "$project_dir" "$instance_id" "$role")
+        role_file=$(prepare_role_definitions "$project_dir" "$instance_id" "$role" "$namespace")
         if [ $? -ne 0 ] && [ -n "$role" ]; then
             echo "⚠ 角色定义准备失败，将不使用角色上下文"
             role_file=""

@@ -378,8 +378,10 @@ case "${1:-}" in
         
         workflow_name="$2"
         namespace="${3:-$CLIEXTRA_DEFAULT_NS}"
+        trigger_message="${4:-手动启动}"
+        trigger_sender="${5:-system:admin}"
         
-        create_dag_instance "$workflow_name" "$namespace"
+        create_dag_instance "$workflow_name" "$namespace" "$trigger_message" "$trigger_sender"
         ;;
     
     "kill")

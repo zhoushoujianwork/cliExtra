@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/cliExtra-config.sh"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 source "$SCRIPT_DIR/cliExtra-status-manager.sh"
 source "$SCRIPT_DIR/cliExtra-sender-id.sh"
+source "$SCRIPT_DIR/cliExtra-dag-hooks.sh"
 
 # 显示帮助
 show_help() {
@@ -411,6 +412,11 @@ broadcast_message() {
     if [[ -n "$successful_instances" ]]; then
         echo "✓ 记录广播消息到对话文件..."
         record_broadcast_to_conversations "$successful_instances" "$message" "$timestamp"
+        
+        # DAG 钩子：检测工作流启动消息
+        local sender_info=$(get_sender_info)
+        echo "🔍 发送者信息: $sender_info"
+        dag_broadcast_hook "$sender_info" "$message" "$target_namespace"
         
         # 自动设置接收实例状态为 busy
         if [[ "$dry_run" != "true" ]]; then

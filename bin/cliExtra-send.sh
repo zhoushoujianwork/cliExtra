@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/cliExtra-config.sh"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 source "$SCRIPT_DIR/cliExtra-status-manager.sh"
 source "$SCRIPT_DIR/cliExtra-sender-id.sh"
+source "$SCRIPT_DIR/cliExtra-dag-hooks.sh"
 
 # 显示帮助
 show_help() {
@@ -319,6 +320,24 @@ send_message_to_instance() {
         local receiver_info="$namespace:$instance_id"
         record_sender_tracking "$sender_info" "$receiver_info" "$message"
     fi
+    
+    # DAG 钩子：检测任务完成消息并更新 DAG 状态
+    local sender_info=$(get_sender_info)
+    local sender_id=$(echo "$sender_info" | cut -d':' -f2)
+    
+    # 临时测试：如果设置了 SENDER_INSTANCE_ID 环境变量，使用它作为发送者
+    if [[ -n "$SENDER_INSTANCE_ID" ]]; then
+        sender_id="$SENDER_INSTANCE_ID"
+        echo "🔍 使用测试发送者: $sender_id"
+    fi
+    
+    local receiver_namespace=$(get_instance_namespace "$instance_id")
+    if [[ -z "$receiver_namespace" ]]; then
+        receiver_namespace="$CLIEXTRA_DEFAULT_NS"
+    fi
+    
+    # 调用 DAG 钩子
+    dag_send_hook "$sender_id" "$instance_id" "$message" "$receiver_namespace"
     
     # 自动设置接收实例状态为 busy
     local namespace=$(get_instance_namespace "$instance_id")
