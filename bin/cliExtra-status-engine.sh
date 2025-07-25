@@ -62,7 +62,8 @@ get_instance_tmux_log() {
     local instance_id="$1"
     local namespace="${2:-$CLIEXTRA_DEFAULT_NS}"
     
-    echo "$(get_instance_logs_dir "$namespace")/instance_${instance_id}_tmux.log"
+    local logs_dir=$(get_instance_log_dir "$namespace")
+    echo "$logs_dir/instance_${instance_id}_tmux.log"
 }
 
 # 基于时间戳检测实例状态
