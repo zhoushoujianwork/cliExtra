@@ -32,8 +32,8 @@ get_sender_info() {
             current_namespace="default"
         else
             # 使用默认值
-            current_instance="user"
-            current_namespace="default"
+            current_instance="admin"
+            current_namespace="system"
         fi
     fi
     

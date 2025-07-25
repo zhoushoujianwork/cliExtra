@@ -1,0 +1,175 @@
+{
+  "version": "2.0",
+  "metadata": {
+    "name": "后端-前端-代码审查协作流程",
+    "description": "用户输入 -> 后端开发 -> 前端集成 -> 代码审查的完整开发流程",
+    "namespace": "dev_workflow",
+    "created_at": "2025-01-25T10:00:00Z"
+  },
+  "roles": {
+    "backend": {
+      "name": "后端工程师",
+      "instance_pattern": "*backend*",
+      "responsibilities": ["API开发", "业务逻辑", "数据库设计"],
+      "tools": ["git", "database", "postman"]
+    },
+    "frontend": {
+      "name": "前端工程师", 
+      "instance_pattern": "*frontend*",
+      "responsibilities": ["UI实现", "接口集成", "用户交互"],
+      "tools": ["git", "npm", "webpack"]
+    },
+    "code_reviewer": {
+      "name": "代码审查工程师",
+      "instance_pattern": "*review*",
+      "responsibilities": ["代码质量审查", "安全检查", "最佳实践验证", "合规性检查"],
+      "tools": ["git", "sonarqube", "eslint", "code_review_tools"]
+    }
+  },
+  "nodes": {
+    "start": {
+      "id": "start",
+      "type": "start",
+      "title": "用户需求输入",
+      "description": "用户向后端输入开发需求"
+    },
+    "backend_development": {
+      "id": "backend_development",
+      "type": "task",
+      "title": "后端开发",
+      "owner": "backend",
+      "description": "根据用户需求开发后端API和业务逻辑",
+      "estimated_time": "4-8h",
+      "deliverables": [
+        "API接口实现",
+        "接口文档",
+        "单元测试",
+        "测试数据"
+      ],
+      "completion_trigger": {
+        "action": "notify_next",
+        "target": "frontend",
+        "message_template": "🚀 **来自后端工程师**: 后端开发完成！\n\n📋 **完成内容**：\n{deliverables}\n\n📖 **接口文档**: 已更新\n🔗 **测试地址**: {test_url}\n🧪 **测试数据**: 已准备\n\n✨ **请开始前端集成开发**，如有问题随时沟通！\n\n---\n💡 完成后将进行代码审查",
+        "auto_send": true,
+        "sender_info": {
+          "role": "backend",
+          "task_id": "backend_development"
+        }
+      }
+    },
+    "frontend_integration": {
+      "id": "frontend_integration",
+      "type": "task", 
+      "title": "前端集成开发",
+      "owner": "frontend",
+      "description": "集成后端API，完成前端功能实现",
+      "estimated_time": "3-6h",
+      "dependencies": ["backend_development"],
+      "deliverables": [
+        "前端页面实现",
+        "API接口集成",
+        "前端测试",
+        "用户界面优化"
+      ],
+      "completion_trigger": {
+        "action": "notify_next",
+        "target": "code_reviewer",
+        "message_template": "✅ **来自前端工程师**: 前后端集成完成，请进行代码审查！\n\n📦 **交付内容**：\n- 后端: {backend_deliverables}\n- 前端: {frontend_deliverables}\n\n🧪 **测试状态**: 前后端联调通过\n🎯 **功能验证**: 用户需求已实现\n\n🔍 **请进行代码质量审查**！\n\n---\n📝 **审查重点**: \n- 代码规范\n- 安全性检查\n- 性能优化\n- 最佳实践验证",
+        "auto_send": true,
+        "sender_info": {
+          "role": "frontend", 
+          "task_id": "frontend_integration"
+        }
+      }
+    },
+    "code_review": {
+      "id": "code_review",
+      "type": "task",
+      "title": "代码审查",
+      "owner": "code_reviewer", 
+      "description": "对前后端代码进行质量审查，确保代码规范和安全性",
+      "estimated_time": "1-2h",
+      "dependencies": ["frontend_integration"],
+      "deliverables": [
+        "代码审查报告",
+        "安全检查清单",
+        "性能优化建议",
+        "代码规范评估",
+        "审查批准状态"
+      ],
+      "completion_trigger": {
+        "action": "broadcast_all",
+        "message_template": "🎯 **来自代码审查工程师**: 代码审查完成！\n\n📋 **审查结果**：\n✅ **代码质量**: {code_quality_score}\n✅ **安全检查**: {security_status}\n✅ **性能评估**: {performance_rating}\n\n📊 **详细评估**：\n- 代码规范: {code_standards}\n- 最佳实践: {best_practices}\n- 测试覆盖率: {test_coverage}\n\n💡 **改进建议**：\n{improvement_suggestions}\n\n🚀 **审查状态**: 通过审查，可以进行后续部署！\n\n感谢团队的出色工作！",
+        "auto_send": true,
+        "sender_info": {
+          "role": "code_reviewer",
+          "task_id": "code_review"
+        }
+      }
+    },
+    "end": {
+      "id": "end",
+      "type": "end",
+      "title": "开发流程完成"
+    }
+  },
+  "edges": [
+    {"from": "start", "to": "backend_development"},
+    {"from": "backend_development", "to": "frontend_integration"},
+    {"from": "frontend_integration", "to": "code_review"},
+    {"from": "code_review", "to": "end"}
+  ],
+  "dag_tracking": {
+    "current_edge": null,
+    "completed_edges": [],
+    "edge_transitions": {
+      "user_input_to_backend": {
+        "trigger": "user_message_detected",
+        "from_node": "start",
+        "to_node": "backend_development"
+      },
+      "backend_to_frontend": {
+        "trigger": "backend_completion_message",
+        "from_node": "backend_development", 
+        "to_node": "frontend_integration"
+      },
+      "frontend_to_review": {
+        "trigger": "frontend_completion_message",
+        "from_node": "frontend_integration",
+        "to_node": "code_review"
+      }
+    }
+  },
+  "message_routing": {
+    "sender_detection": {
+      "enabled": true,
+      "methods": ["instance_pattern", "message_signature", "tmux_session"]
+    },
+    "message_templates": {
+      "task_completion": "🔄 **DAG更新**: {sender_role} -> {target_role}\n📍 **当前节点**: {current_node}\n⏭️ **下一步**: {next_node}"
+    }
+  },
+  "auto_triggers": {
+    "task_complete": {
+      "enabled": true,
+      "command_template": "qq send {target_instance} \"{message}\" --from {sender_instance}"
+    },
+    "dag_progress_update": {
+      "enabled": true,
+      "command_template": "qq workflow update-edge {current_edge} --status completed"
+    }
+  },
+  "review_criteria": {
+    "code_quality": {
+      "standards": ["代码规范", "命名规范", "注释完整性"],
+      "security": ["SQL注入防护", "XSS防护", "认证授权"],
+      "performance": ["查询优化", "缓存策略", "资源管理"],
+      "testing": ["单元测试", "集成测试", "覆盖率要求"]
+    },
+    "approval_conditions": {
+      "min_code_quality_score": 80,
+      "security_issues_allowed": 0,
+      "test_coverage_required": 70
+    }
+  }
+}

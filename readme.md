@@ -148,6 +148,62 @@ qq start --role frontend    # 启动并应用前端工程师角色
 qq start --name backend --role backend  # 启动并应用后端工程师角色
 ```
 
+### 监控守护进程
+
+cliExtra 提供了智能监控守护进程，可以自动检测 agent 的工作状态并更新状态文件。
+
+#### 功能特点
+- **自动监控**: 监控所有 agent 的 tmux 终端输出
+- **智能检测**: 识别用户输入等待符判断空闲状态
+- **状态更新**: 自动更新 agent 状态文件（0=idle, 1=busy）
+- **后台运行**: 守护进程模式，不影响正常使用
+
+#### 基本操作
+
+```bash
+# 启动监控守护进程
+qq wf start
+
+# 查看监控状态
+qq wf status
+
+# 查看监控日志
+qq wf logs
+
+# 重启监控
+qq wf restart
+
+# 停止监控
+qq wf stop
+```
+
+#### 检测规则
+
+**空闲状态检测**（自动设置为 idle）：
+- 基本提示符：`> `, `$ `, `# `
+- 带颜色提示符：`[38;5;13m> [39m`（你提到的格式）
+- 等待输入：`Enter`, `Press`, `Y/n`, `Please enter`
+- 选择提示：`Choice:`, `Select:`, `Input:`
+
+**忙碌状态检测**（自动设置为 busy）：
+- 处理关键词：`Processing`, `Loading`, `Analyzing`
+- 工作关键词：`Generating`, `Building`, `Working`
+- 等待提示：`Please wait`, `...`
+
+#### 监控日志示例
+```
+[2025-07-25 10:11:19] [DEBUG] Agent backend-api is waiting for input
+[2025-07-25 10:11:19] [INFO] Updated agent backend-api status: 1 -> 0 (idle)
+[2025-07-25 10:11:22] [DEBUG] Agent frontend-dev is busy
+[2025-07-25 10:11:22] [INFO] Updated agent frontend-dev status: 0 -> 1 (busy)
+```
+
+#### 配置说明
+- **监控间隔**: 2秒检查一次
+- **日志文件**: `~/Library/Application Support/cliExtra/watcher.log`
+- **PID文件**: `~/Library/Application Support/cliExtra/watcher.pid`
+- **检查行数**: 检查终端输出的最后5行
+
 ### 实例状态管理
 
 ```bash
@@ -418,6 +474,9 @@ qq replay namespace development --since "2025-01-20"
 # 发送消息到指定实例
 qq send backend-api "API开发完成，请进行前端集成"
 
+# 发送消息时不添加发送者标识
+qq send frontend-dev "调试消息" --no-sender-id
+
 # 广播消息到默认namespace的所有实例
 qq broadcast "系统维护通知：今晚22:00-24:00进行系统升级"
 
@@ -428,11 +487,58 @@ qq broadcast "全系统更新通知" --all
 # 广播到指定namespace
 qq broadcast "前端组件库更新" --namespace frontend
 
+# 广播时不添加发送者标识
+qq broadcast "系统通知" --no-sender-id
+
 # 排除特定实例的广播
 qq broadcast "测试环境重启" --exclude self
 
 # 预览广播目标（不实际发送）
 qq broadcast "部署通知" --dry-run
+
+# 查看发送者统计信息
+qq sender-stats                    # 查看24小时内的统计
+qq sender-stats 7d                 # 查看7天内的统计
+qq sender-stats all                # 查看所有统计
+
+# 获取当前发送者信息
+qq sender-info
+```
+
+#### 🏷️ 发送者标识功能
+
+为了支持 DAG 流程追踪和协作上下文管理，cliExtra 提供了自动发送者标识功能：
+
+**默认行为**：
+- 所有消息（send/broadcast）默认自动添加发送者标识
+- 格式：`[发送者: namespace:instance_id] 原始消息内容`
+- 例如：`[发送者: default:user] API开发完成，请进行前端集成`
+
+**功能价值**：
+- **DAG 流程追踪**：明确知道是哪个节点完成了任务
+- **协作上下文**：接收方知道与谁协作，便于后续沟通
+- **消息审计**：完整的消息来源追踪和统计分析
+- **智能路由**：根据发送者和接收者更新工作流状态
+
+**控制选项**：
+- `--sender-id`：显式启用发送者标识（默认）
+- `--no-sender-id`：禁用发送者标识
+- `qq sender-stats`：查看发送者统计信息
+- `qq sender-info`：获取当前发送者信息
+
+**使用场景**：
+```bash
+# 正常协作消息（带发送者标识）
+qq send backend-api "API接口已完成，请进行集成测试"
+
+# 调试或临时消息（不带发送者标识）
+qq send test-instance "临时调试信息" --no-sender-id
+
+# 系统广播（带发送者标识，便于追踪）
+qq broadcast "部署完成，请各团队验证功能"
+
+# 简单通知（不带发送者标识）
+qq broadcast "系统重启完成" --no-sender-id
 ```
 
 **注意**: 每个项目建议只保留一个角色预设，多个角色可能导致意图识别混乱。应用新角色时会自动移除现有角色。

@@ -34,6 +34,7 @@ show_help() {
     echo "  $0 sender-stats [time]       - 查看发送者统计信息"
     echo "  $0 sender-info               - 获取当前发送者信息"
     echo "  $0 eg <command>              - 监控守护引擎管理 (start|stop|status)"
+    echo "  $0 dag <command>             - DAG 工作流管理 (list|show|create)"
 
     echo "  $0 broadcast <message>       - 广播消息到实例"
     echo "  $0 tools <command>           - 工具管理"
@@ -89,6 +90,7 @@ show_help() {
 
     echo "  $0 eg start                  # 启动监控守护引擎"
     echo "  $0 eg status                 # 查看监控状态"
+    echo "  $0 dag list                  # 列出 DAG 实例"
     echo "  $0 tools add git             # 添加git工具到当前项目"
     echo "  $0 replay instance backend-api  # 回放backend-api实例的对话"
     echo ""
@@ -192,6 +194,10 @@ case "${1:-}" in
     
     "eg")
         "$SCRIPT_DIR/bin/cliExtra-eg.sh" "${@:2}"
+        ;;
+    
+    "dag")
+        "$SCRIPT_DIR/bin/cliExtra-dag.sh" "${@:2}"
         ;;
 
     "broadcast")
