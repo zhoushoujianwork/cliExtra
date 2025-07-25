@@ -173,10 +173,15 @@ get_instance_details() {
     local log_file=""
     local config_file=""
     local instance_dir=""
+    local namespace=""
     
     # 使用新的实例查找函数
     instance_dir=$(find_instance_info_dir "$instance_id")
     if [[ $? -eq 0 && -n "$instance_dir" ]]; then
+        # 从实例目录路径中提取 namespace
+        # 路径格式: .../namespaces/NAMESPACE/instances/instance_ID
+        namespace=$(echo "$instance_dir" | sed -E 's|.*/namespaces/([^/]+)/instances/.*|\1|')
+        
         # 从实例信息中获取项目目录
         if [ -f "$instance_dir/project_path" ]; then
             project_dir=$(cat "$instance_dir/project_path")
@@ -303,7 +308,7 @@ get_all_instances() {
                         local status="stopped"
                         if tmux has-session -t "$session_name" 2>/dev/null; then
                             # 获取实例的工作状态（idle/busy）
-                            local instance_status=$(get_instance_status "$instance_id" "$current_ns")
+                            local instance_status=$(get_instance_status "$instance_id" "$namespace")
                             if [[ -n "$instance_status" ]]; then
                                 status="$instance_status"
                             else
