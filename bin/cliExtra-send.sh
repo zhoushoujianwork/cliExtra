@@ -406,8 +406,27 @@ send_message_to_instance() {
     fi
     
     # 自动设置接收实例状态为 busy
+    if [[ "$CLIEXTRA_DEBUG" == "true" ]]; then
+        echo "🔍 调试: 正在更新实例 $instance_id 状态为 busy..."
+        echo "🔍 调试: 状态文件路径: $(get_instance_status_file "$instance_id" "$namespace")"
+    fi
+    
     if auto_set_busy_on_message "$instance_id" "$message" "$namespace"; then
         echo "✓ 实例状态已自动设置为忙碌"
+        
+        # 验证状态更新是否成功
+        if [[ "$CLIEXTRA_DEBUG" == "true" ]]; then
+            if verify_instance_status "$instance_id" "$STATUS_BUSY" "$namespace"; then
+                echo "🔍 调试: 状态验证成功，当前状态值: 1 (busy)"
+            else
+                echo "🔍 调试: 状态验证失败，可能存在并发更新问题"
+            fi
+        fi
+    else
+        echo "⚠ 警告: 无法更新实例状态，但消息已成功发送"
+        if [[ "$CLIEXTRA_DEBUG" == "true" ]]; then
+            echo "🔍 调试: 状态更新失败，请检查权限和目录结构"
+        fi
     fi
     
     # 记录对话

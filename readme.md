@@ -202,6 +202,99 @@ qq status-engine get-threshold frontend
 - **PID文件**: `~/Library/Application Support/cliExtra/watcher.pid`
 - **检查行数**: 检查终端输出的最后5行
 
+### 自动恢复功能
+
+cliExtra 提供了类似 Kubernetes 容器自动恢复的功能，能够自动识别停止的实例并使用原有配置重新启动。
+
+#### 🔄 自动恢复特性
+- **智能识别**: 自动扫描所有 namespace 中的停止实例
+- **配置保持**: 使用原有的工作目录、namespace、角色等信息启动
+- **系统实例跳过**: 自动跳过 `*_system` 实例（通常没有有效项目目录）
+- **守护进程**: 支持后台守护进程定期检查和恢复
+- **批量操作**: 支持一次性恢复所有或指定 namespace 的实例
+
+#### 基本操作
+
+```bash
+# 列出所有停止的实例
+qq auto-recovery list-stopped
+qq auto-recovery list-stopped -A          # 所有 namespace
+qq auto-recovery list-stopped -n frontend # 指定 namespace
+
+# 立即恢复停止的实例
+qq recover-all                            # 恢复 default namespace 的实例
+qq recover-all -A                         # 恢复所有 namespace 的实例
+qq recover-all -n backend                 # 恢复指定 namespace 的实例
+qq recover-all --dry-run                  # 预览模式，不实际执行
+
+# 恢复单个实例
+qq auto-recovery recover <instance_id>
+
+# 启动自动恢复守护进程
+qq auto-recovery start                    # 默认30秒检查间隔
+qq auto-recovery start --interval 60      # 自定义检查间隔
+
+# 管理守护进程
+qq auto-recovery status                   # 查看守护进程状态
+qq auto-recovery stop                     # 停止守护进程
+qq auto-recovery restart                  # 重启守护进程
+```
+
+#### 使用场景
+
+**机器重启后恢复**:
+```bash
+# 机器重启后，所有实例都变成 stopped 状态
+qq list -A                                # 查看所有实例状态
+qq recover-all -A                         # 一键恢复所有实例
+```
+
+**开发环境管理**:
+```bash
+# 启动守护进程，自动维护开发环境
+qq auto-recovery start --interval 30
+
+# 只恢复特定项目的实例
+qq recover-all -n frontend --dry-run      # 预览
+qq recover-all -n frontend                # 执行恢复
+```
+
+**批量运维**:
+```bash
+# 检查哪些实例需要恢复
+qq auto-recovery list-stopped -A
+
+# 分批恢复不同 namespace
+qq recover-all -n backend
+qq recover-all -n frontend
+qq recover-all -n devops
+```
+
+#### 恢复逻辑
+
+1. **实例扫描**: 扫描指定 namespace 中状态为 `stopped` 的实例
+2. **配置读取**: 从实例信息文件中读取原有配置（项目目录、角色等）
+3. **有效性检查**: 验证项目目录是否存在，跳过无效实例
+4. **系统实例过滤**: 自动跳过 `*_system` 实例
+5. **启动恢复**: 使用 `qq start` 命令和原有配置重新启动实例
+
+#### 守护进程日志
+
+守护进程会记录详细的恢复日志：
+
+```bash
+# 查看守护进程日志
+tail -f ~/Library/Application\ Support/cliExtra/auto-recovery.log
+
+# 日志示例
+[2025-07-27 04:58:29] [INFO] 开始检查停止的实例
+[2025-07-27 04:58:29] [INFO] 发现 3 个停止的实例，开始恢复
+[2025-07-27 04:58:29] [INFO] 正在恢复实例: backend-api
+[2025-07-27 04:58:30] [INFO] 实例恢复成功: backend-api
+[2025-07-27 04:58:30] [INFO] 跳过系统实例: backend_system
+[2025-07-27 04:58:30] [INFO] 检查完成，等待 30秒
+```
+
 ### 实例管理
 
 ```bash
@@ -290,11 +383,10 @@ qq role list
 
 # 显示角色预设内容
 qq role show frontend
-qq role show           # 显示当前目录的角色（只显示角色名）
-qq role show ./        # 显示指定目录的角色（只显示角色名）
+qq role show shell      # 显示Shell工程师角色预设
 
-# 应用角色预设到项目或实例
-qq role apply frontend             # 当前目录应用前端工程师角色
+# 应用角色预设到运行中的实例
+qq role apply frontend             # 自动查找当前目录的运行实例并应用前端工程师角色
 qq role apply backend myproject    # 指定实例应用后端工程师角色
 
 # 强制应用（不需要确认，适合自动化脚本）
@@ -302,10 +394,40 @@ qq role apply devops -f            # 强制应用运维工程师角色
 qq role apply frontend myproject -f
 qq role apply backend -f myproject # 参数顺序灵活
 
-# 移除项目/实例中的角色预设
-qq role remove
-qq role remove myproject
+# 移除实例中的角色预设
+qq role remove                     # 自动查找当前目录的运行实例并移除角色
+qq role remove myproject           # 移除指定实例的角色预设
 ```
+
+#### 🤖 新的角色应用机制
+
+**重要变更**: `qq role apply` 现在采用全新的应用机制：
+
+1. **消息方式发送**: 角色定义通过消息直接发送到运行中的实例
+2. **系统目录保存**: 角色信息保存到系统目录 `~/Library/Application Support/cliExtra/namespaces/<namespace>/instances/instance_<id>/roles/`
+3. **实例信息更新**: 自动更新实例的 info 文件中的 ROLE 和 ROLE_FILE 信息
+4. **智能查找**: 不指定实例ID时自动查找当前目录对应的运行实例
+
+**使用流程**:
+```bash
+# 1. 启动实例
+qq start --name myproject
+
+# 2. 应用角色（会立即生效）
+qq role apply shell
+
+# 3. 验证角色应用
+qq list  # 查看实例列表中的角色信息
+
+# 4. 移除角色（如需要）
+qq role remove
+```
+
+**技术优势**:
+- **即时生效**: 角色定义立即发送到AI实例，无需重启
+- **持久保存**: 角色信息保存在系统目录，支持实例恢复
+- **状态同步**: 实例列表正确显示角色信息
+- **智能操作**: 自动查找当前目录对应的实例
 
 ### Namespace管理
 
@@ -497,6 +619,7 @@ qq sender-stats all                # 查看所有统计
 - `data` → 数据工程师
 - `ai` → AI工程师
 - `security` → 安全工程师
+- `ui-ux` → UI/UX设计师
 - `system-coordinator` → 系统协调员
 
 **功能价值**：

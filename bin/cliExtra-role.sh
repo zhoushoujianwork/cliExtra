@@ -13,6 +13,9 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# 系统配置
+CLIEXTRA_HOME="${CLIEXTRA_HOME}"
+
 # 角色定义（动态加载 roles 目录）
 ROLES_DIR="$(dirname "$(dirname "$0")")/roles"
 
@@ -62,22 +65,28 @@ show_help() {
     echo "用法:"
     echo "  $0 list                    - 列出所有可用角色"
     echo "  $0 show <role>             - 显示指定角色的预设内容"
-    echo "  $0 apply <role> [instance] [-f] - 应用角色预设到项目或指定实例"
-    echo "  $0 remove [instance]       - 移除项目或指定实例中的角色预设"
+    echo "  $0 apply <role> [instance] [-f] - 应用角色预设到运行中的实例"
+    echo "  $0 remove [instance]       - 移除实例中的角色预设"
     echo "  $0 help                    - 显示此帮助"
     echo ""
     echo "可用角色:"
-    for i in "${!ROLE_KEYS[@]}"; do
-        echo "  ${ROLE_KEYS[$i]} - ${ROLE_NAMES[$i]}"
+    for role in $(get_all_role_keys); do
+        local name=$(get_role_name "$role")
+        echo "  $role - $name"
     done
+    echo ""
+    echo "角色应用说明:"
+    echo "  - apply 命令会将角色定义发送到运行中的实例"
+    echo "  - 角色信息会保存到系统目录中"
+    echo "  - 如果不指定实例ID，会自动查找当前目录对应的运行实例"
     echo ""
     echo "示例:"
     echo "  $0 list                    # 列出所有角色"
     echo "  $0 show frontend           # 显示前端工程师预设"
-    echo "  $0 apply frontend          # 在当前项目应用前端工程师角色"
+    echo "  $0 apply frontend          # 在当前目录的实例应用前端工程师角色"
     echo "  $0 apply backend myproject # 在指定实例应用后端工程师角色"
     echo "  $0 apply devops -f         # 强制应用运维工程师角色（不确认）"
-    echo "  $0 remove                  # 移除当前项目的角色预设"
+    echo "  $0 remove                  # 移除当前目录实例的角色预设"
     echo "  $0 remove myproject        # 移除指定实例的角色预设"
     echo ""
 }
@@ -138,12 +147,11 @@ show_role() {
     return 1
 }
 
-# 应用角色预设到项目
+# 应用角色预设到实例
 apply_role() {
     local role="$1"
     local instance_id="$2"
     local force="$3"
-    local project_dir=""
     
     if [ -z "$role" ]; then
         echo -e "${RED}错误: 请指定角色名称${NC}"
@@ -156,144 +164,158 @@ apply_role() {
         return 1
     fi
     
-    # 如果指定了实例ID，查找对应的项目目录
-    if [ -n "$instance_id" ]; then
-        project_dir=$(find_instance_project "$instance_id")
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}错误: 找不到实例 $instance_id 对应的项目${NC}"
+    # 如果没有指定实例ID，尝试从当前目录查找运行中的实例
+    if [ -z "$instance_id" ]; then
+        instance_id=$(find_current_directory_instance)
+        if [ -z "$instance_id" ]; then
+            echo -e "${RED}错误: 请指定实例ID或在有运行实例的项目目录中执行${NC}"
+            echo "使用方法: qq role apply $role <instance_id>"
             return 1
         fi
-        echo -e "${BLUE}找到实例 $instance_id 的项目目录: $project_dir${NC}"
-    else
-        # 使用当前目录
-        project_dir="."
+        echo -e "${BLUE}找到当前目录的实例: $instance_id${NC}"
     fi
     
-    # 检查项目目录
-    if [ ! -d "$project_dir" ]; then
-        echo -e "${RED}错误: 项目目录不存在: $project_dir${NC}"
+    # 检查实例是否存在和运行
+    local session_name="q_instance_$instance_id"
+    if ! tmux has-session -t "$session_name" 2>/dev/null; then
+        echo -e "${RED}错误: 实例 $instance_id 未运行${NC}"
+        echo "请先启动实例或指定正确的实例ID"
         return 1
     fi
     
-    local role_file="$ROLES_DIR/${role}-engineer.md"
+    # 获取实例信息
+    local instance_info=$(get_instance_info "$instance_id")
+    if [ -z "$instance_info" ]; then
+        echo -e "${RED}错误: 找不到实例 $instance_id 的信息${NC}"
+        return 1
+    fi
     
+    local namespace=$(get_instance_namespace "$instance_id")
+    if [ -z "$namespace" ]; then
+        namespace="default"
+    fi
+    
+    local role_file="$ROLES_DIR/${role}-engineer.md"
     if [ ! -f "$role_file" ]; then
         echo -e "${RED}错误: 角色文件不存在: $role_file${NC}"
         return 1
     fi
     
-    # 创建项目配置目录（如果不存在）
-    local amazonq_dir="$(get_project_config_dir "$project_dir")"
-    if [ ! -d "$amazonq_dir" ]; then
-        echo -e "${YELLOW}创建项目配置目录: $amazonq_dir${NC}"
-        mkdir -p "$amazonq_dir"
-    fi
-    
-    # 创建rules目录（如果不存在）
-    local rules_dir="$(get_project_rules_dir "$project_dir")"
-    if [ ! -d "$rules_dir" ]; then
-        echo -e "${YELLOW}创建rules目录: $rules_dir${NC}"
-        mkdir -p "$rules_dir"
-    fi
-    
-    # 检查是否已有其他角色预设
-    local existing_roles=()
-    for existing_role in $(get_all_role_keys); do
-        local existing_file="$rules_dir/${existing_role}-engineer.md"
-        if [ -f "$existing_file" ]; then
-            existing_roles+=("$existing_role")
-        fi
-    done
-    
-    # 如果已有角色预设，询问是否替换
-    if [ ${#existing_roles[@]} -gt 0 ]; then
-        echo -e "${YELLOW}警告: 项目中已存在角色预设${NC}"
-        for existing_role in "${existing_roles[@]}"; do
-            local existing_name=$(get_role_name "$existing_role")
-            echo -e "  - $existing_name"
-        done
-        echo ""
-        echo -e "${YELLOW}注意: 每个项目建议只保留一个角色预设，多个角色可能导致意图识别混乱${NC}"
-        echo ""
-        
-        # 如果指定了强制模式，直接替换
-        if [ "$force" = "true" ]; then
-            echo -e "${YELLOW}强制模式: 自动替换现有角色预设${NC}"
-        else
-            read -p "是否替换现有角色预设? (y/N): " -n 1 -r
-            echo
-            if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-                echo -e "${YELLOW}操作已取消${NC}"
-                return 0
-            fi
-        fi
-        
-        # 移除现有角色预设
-        echo -e "${YELLOW}移除现有角色预设...${NC}"
-        for existing_role in "${existing_roles[@]}"; do
-            local existing_file="$rules_dir/${existing_role}-engineer.md"
-            rm -f "$existing_file"
-            local existing_name=$(get_role_name "$existing_role")
-            echo -e "${GREEN}✓ 已移除: $existing_name${NC}"
-        done
-    fi
-    
-    # 复制角色预设文件
-    local target_file="$rules_dir/${role}-engineer.md"
     local role_name=$(get_role_name "$role")
-    echo -e "${YELLOW}应用角色预设: $role_name${NC}"
-    cp "$role_file" "$target_file"
+    
+    # 检查是否需要确认
+    if [ "$force" != "true" ]; then
+        echo -e "${YELLOW}将为实例 $instance_id 应用角色: $role_name${NC}"
+        read -p "确认继续? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            echo -e "${YELLOW}操作已取消${NC}"
+            return 0
+        fi
+    fi
+    
+    # 1. 保存角色信息到系统目录
+    echo -e "${YELLOW}保存角色信息到系统目录...${NC}"
+    local instance_dir="$CLIEXTRA_HOME/namespaces/$namespace/instances/instance_$instance_id"
+    local roles_dir="$instance_dir/roles"
+    
+    # 创建角色目录
+    mkdir -p "$roles_dir"
+    
+    # 复制角色文件到系统目录
+    local target_role_file="$roles_dir/${role}-engineer.md"
+    cp "$role_file" "$target_role_file"
+    echo -e "${GREEN}✓ 角色文件已保存: $target_role_file${NC}"
     
     # 复制通用边界规则
     local boundary_file="$(dirname "$(dirname "$0")")/rules/role-boundaries.md"
     if [ -f "$boundary_file" ]; then
-        local boundary_target="$rules_dir/role-boundaries.md"
-        echo -e "${YELLOW}应用通用角色边界规则${NC}"
+        local boundary_target="$roles_dir/role-boundaries.md"
         cp "$boundary_file" "$boundary_target"
+        echo -e "${GREEN}✓ 边界规则已保存: $boundary_target${NC}"
     fi
     
-    echo -e "${GREEN}✓ 角色预设已应用到项目: $project_dir${NC}"
-    echo -e "${BLUE}角色预设文件: $target_file${NC}"
-    echo -e "${BLUE}边界规则文件: $rules_dir/role-boundaries.md${NC}"
+    # 2. 更新实例info文件中的角色信息
+    echo -e "${YELLOW}更新实例角色信息...${NC}"
+    local info_file="$instance_dir/info"
+    if [ -f "$info_file" ]; then
+        # 移除旧的ROLE行并添加新的
+        grep -v "^ROLE=" "$info_file" > "$info_file.tmp"
+        echo "ROLE=$role" >> "$info_file.tmp"
+        echo "ROLE_FILE=$target_role_file" >> "$info_file.tmp"
+        mv "$info_file.tmp" "$info_file"
+        echo -e "${GREEN}✓ 实例信息已更新${NC}"
+    else
+        echo -e "${RED}警告: 实例信息文件不存在: $info_file${NC}"
+    fi
+    
+    # 3. 通过消息方式发送角色定义到实例
+    echo -e "${YELLOW}发送角色定义到实例...${NC}"
+    
+    # 读取角色文件内容
+    local role_content=$(cat "$role_file")
+    
+    # 构建角色应用消息
+    local role_message="请按照以下角色定义来协助我：
+
+$role_content
+
+请确认你已理解并将按照以上角色定义来协助我的工作。"
+    
+    # 发送角色定义消息到实例
+    tmux send-keys -t "$session_name" "$role_message" Enter
+    
+    echo -e "${GREEN}✓ 角色定义已发送到实例 $instance_id${NC}"
+    echo -e "${GREEN}✓ 角色预设应用完成: $role_name${NC}"
+    echo ""
+    echo -e "${BLUE}角色信息:${NC}"
+    echo -e "  实例ID: $instance_id"
+    echo -e "  角色: $role_name"
+    echo -e "  命名空间: $namespace"
+    echo -e "  角色文件: $target_role_file"
 }
 
-# 移除项目中的角色预设
+# 移除实例中的角色预设
 remove_role() {
     local instance_id="$1"
-    local project_dir=""
     
-    # 如果指定了实例ID，查找对应的项目目录
-    if [ -n "$instance_id" ]; then
-        project_dir=$(find_instance_project "$instance_id")
-        if [ $? -ne 0 ]; then
-            echo -e "${RED}错误: 找不到实例 $instance_id 对应的项目${NC}"
+    # 如果没有指定实例ID，尝试从当前目录查找运行中的实例
+    if [ -z "$instance_id" ]; then
+        instance_id=$(find_current_directory_instance)
+        if [ -z "$instance_id" ]; then
+            echo -e "${RED}错误: 请指定实例ID或在有运行实例的项目目录中执行${NC}"
+            echo "使用方法: qq role remove <instance_id>"
             return 1
         fi
-        echo -e "${BLUE}找到实例 $instance_id 的项目目录: $project_dir${NC}"
-    else
-        # 使用当前目录
-        project_dir="."
+        echo -e "${BLUE}找到当前目录的实例: $instance_id${NC}"
     fi
     
-    # 检查项目目录
-    if [ ! -d "$project_dir" ]; then
-        echo -e "${RED}错误: 项目目录不存在: $project_dir${NC}"
+    # 检查实例是否存在
+    local instance_info=$(get_instance_info "$instance_id")
+    if [ -z "$instance_info" ]; then
+        echo -e "${RED}错误: 找不到实例 $instance_id${NC}"
         return 1
     fi
     
-    local rules_dir="$(get_project_rules_dir "$project_dir")"
+    local namespace=$(get_instance_namespace "$instance_id")
+    if [ -z "$namespace" ]; then
+        namespace="default"
+    fi
     
-    if [ ! -d "$rules_dir" ]; then
-        echo -e "${YELLOW}项目中没有角色预设${NC}"
+    local instance_dir="$CLIEXTRA_HOME/namespaces/$namespace/instances/instance_$instance_id"
+    local roles_dir="$instance_dir/roles"
+    
+    if [ ! -d "$roles_dir" ]; then
+        echo -e "${YELLOW}实例中没有角色预设${NC}"
         return 0
     fi
     
-    echo -e "${YELLOW}移除项目中的角色预设...${NC}"
+    echo -e "${YELLOW}移除实例 $instance_id 中的角色预设...${NC}"
     
     # 移除所有角色预设文件
     local removed_count=0
     for role in $(get_all_role_keys); do
-        local role_file="$rules_dir/${role}-engineer.md"
+        local role_file="$roles_dir/${role}-engineer.md"
         if [ -f "$role_file" ]; then
             rm -f "$role_file"
             local role_name=$(get_role_name "$role")
@@ -303,18 +325,131 @@ remove_role() {
     done
     
     # 移除通用边界规则
-    local boundary_file="$rules_dir/role-boundaries.md"
+    local boundary_file="$roles_dir/role-boundaries.md"
     if [ -f "$boundary_file" ]; then
         rm -f "$boundary_file"
         echo -e "${GREEN}✓ 已移除: 通用角色边界规则${NC}"
         ((removed_count++))
     fi
     
+    # 更新实例info文件，移除角色信息
+    local info_file="$instance_dir/info"
+    if [ -f "$info_file" ]; then
+        grep -v "^ROLE=" "$info_file" | grep -v "^ROLE_FILE=" > "$info_file.tmp"
+        mv "$info_file.tmp" "$info_file"
+        echo -e "${GREEN}✓ 已更新实例信息${NC}"
+    fi
+    
+    # 如果角色目录为空，删除它
+    if [ -d "$roles_dir" ] && [ -z "$(ls -A "$roles_dir")" ]; then
+        rmdir "$roles_dir"
+        echo -e "${GREEN}✓ 已清理空的角色目录${NC}"
+    fi
+    
     if [ $removed_count -eq 0 ]; then
         echo -e "${YELLOW}没有找到角色预设文件${NC}"
     else
         echo -e "${GREEN}✓ 已移除 $removed_count 个文件${NC}"
+        
+        # 发送角色移除通知到实例（如果实例在运行）
+        local session_name="q_instance_$instance_id"
+        if tmux has-session -t "$session_name" 2>/dev/null; then
+            local remove_message="角色预设已被移除，你现在可以按照通用AI助手的方式协助工作。"
+            tmux send-keys -t "$session_name" "$remove_message" Enter
+            echo -e "${GREEN}✓ 已通知实例角色预设已移除${NC}"
+        fi
     fi
+}
+
+# 查找当前目录对应的运行实例
+find_current_directory_instance() {
+    local current_dir=$(pwd)
+    local current_dir_abs=$(cd "$current_dir" && pwd)
+    
+    # 遍历所有namespace查找匹配的实例
+    for namespace_dir in "$CLIEXTRA_HOME/namespaces"/*; do
+        if [ ! -d "$namespace_dir" ]; then
+            continue
+        fi
+        
+        local namespace=$(basename "$namespace_dir")
+        local instances_dir="$namespace_dir/instances"
+        
+        if [ ! -d "$instances_dir" ]; then
+            continue
+        fi
+        
+        # 遍历该namespace下的所有实例
+        for instance_dir in "$instances_dir"/instance_*; do
+            if [ ! -d "$instance_dir" ]; then
+                continue
+            fi
+            
+            local instance_id=$(basename "$instance_dir" | sed 's/^instance_//')
+            local project_path_file="$instance_dir/project_path"
+            
+            if [ -f "$project_path_file" ]; then
+                local project_path=$(cat "$project_path_file")
+                local project_path_abs=$(cd "$project_path" 2>/dev/null && pwd)
+                
+                # 检查路径是否匹配
+                if [ "$current_dir_abs" = "$project_path_abs" ]; then
+                    # 检查实例是否在运行
+                    local session_name="q_instance_$instance_id"
+                    if tmux has-session -t "$session_name" 2>/dev/null; then
+                        echo "$instance_id"
+                        return 0
+                    fi
+                fi
+            fi
+        done
+    done
+    
+    return 1
+}
+
+# 获取实例信息
+get_instance_info() {
+    local instance_id="$1"
+    
+    # 遍历所有namespace查找实例
+    for namespace_dir in "$CLIEXTRA_HOME/namespaces"/*; do
+        if [ ! -d "$namespace_dir" ]; then
+            continue
+        fi
+        
+        local instance_dir="$namespace_dir/instances/instance_$instance_id"
+        local info_file="$instance_dir/info"
+        
+        if [ -f "$info_file" ]; then
+            cat "$info_file"
+            return 0
+        fi
+    done
+    
+    return 1
+}
+
+# 获取实例的命名空间
+get_instance_namespace() {
+    local instance_id="$1"
+    
+    # 遍历所有namespace查找实例
+    for namespace_dir in "$CLIEXTRA_HOME/namespaces"/*; do
+        if [ ! -d "$namespace_dir" ]; then
+            continue
+        fi
+        
+        local namespace=$(basename "$namespace_dir")
+        local instance_dir="$namespace_dir/instances/instance_$instance_id"
+        
+        if [ -d "$instance_dir" ]; then
+            echo "$namespace"
+            return 0
+        fi
+    done
+    
+    return 1
 }
 
 # 解析参数

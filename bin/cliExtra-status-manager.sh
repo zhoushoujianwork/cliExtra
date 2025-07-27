@@ -217,12 +217,11 @@ auto_set_busy_on_message() {
     fi
     
     # 更新状态为 busy (1)
-    update_status_file "$instance_id" "$STATUS_BUSY" "$namespace"
-    
-    if [[ $? -eq 0 ]]; then
+    if update_status_file "$instance_id" "$STATUS_BUSY" "$namespace"; then
         return 0
     else
-        echo "警告: 无法更新实例 $instance_id 的状态" >&2
+        echo "警告: 无法更新实例 $instance_id 的状态文件" >&2
+        echo "状态文件路径: $(get_instance_status_file "$instance_id" "$namespace")" >&2
         return 1
     fi
 }
@@ -265,6 +264,27 @@ auto_set_busy_on_broadcast() {
 }
 
 # === 性能优化补丁 (基于前端反馈) ===
+
+# 验证实例状态是否为指定值
+verify_instance_status() {
+    local instance_id="$1"
+    local expected_status="$2"
+    local namespace="${3:-$CLIEXTRA_DEFAULT_NS}"
+    
+    if [[ -z "$instance_id" || -z "$expected_status" ]]; then
+        echo "错误: 实例ID和期望状态不能为空" >&2
+        return 1
+    fi
+    
+    local current_status=$(read_status_file "$instance_id" "$namespace")
+    
+    if [[ "$current_status" == "$expected_status" ]]; then
+        return 0
+    else
+        echo "状态验证失败: 期望 $expected_status，实际 $current_status" >&2
+        return 1
+    fi
+}
 
 # 批量状态查询优化
 batch_read_status() {

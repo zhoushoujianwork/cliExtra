@@ -34,6 +34,8 @@ show_help() {
     echo "  $0 eg <command>              - 监控守护引擎管理 (start|stop|status)"
     echo "  $0 status-engine <command>   - 状态检测引擎 (detect|batch|health)"
     echo "  $0 dag <command>             - DAG 工作流管理 (list|show|create)"
+    echo "  $0 auto-recovery <command>   - 自动恢复管理 (start|stop|status|recover-all)"
+    echo "  $0 recover-all [options]     - 立即恢复所有停止的实例"
 
     echo "  $0 broadcast <message>       - 广播消息到实例"
     echo "  $0 tools <command>           - 工具管理"
@@ -191,6 +193,14 @@ case "${1:-}" in
         "$SCRIPT_DIR/bin/cliExtra-dag.sh" "${@:2}"
         ;;
 
+    "auto-recovery"|"ar")
+        "$SCRIPT_DIR/bin/cliExtra-auto-recovery.sh" "${@:2}"
+        ;;
+
+    "recover-all")
+        "$SCRIPT_DIR/bin/cliExtra-auto-recovery.sh" "recover-all" "${@:2}"
+        ;;
+
     "broadcast")
         "$SCRIPT_DIR/bin/cliExtra-broadcast.sh" "${@:2}"
         ;;
@@ -200,6 +210,11 @@ case "${1:-}" in
     "replay")
         "$SCRIPT_DIR/bin/cliExtra-replay.sh" "${@:2}"
         ;;
+    
+    "api")
+        "$SCRIPT_DIR/bin/cliExtra-api-server.sh" "${@:2}"
+        ;;
+    
     "help"|"")
         show_help
         ;;
