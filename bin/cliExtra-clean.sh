@@ -153,6 +153,16 @@ clean_single_instance() {
             if remove_status_file "$instance_id" "$namespace"; then
                 echo "✓ 删除状态文件"
             fi
+            
+            # 清理重启记录
+            if [ -f "$SCRIPT_DIR/cliExtra-restart-manager.sh" ]; then
+                source "$SCRIPT_DIR/cliExtra-restart-manager.sh"
+                local record_file=$(get_restart_record_file "$instance_id" "$namespace")
+                if [[ -f "$record_file" ]]; then
+                    rm -f "$record_file"
+                    echo "✓ 删除重启记录"
+                fi
+            fi
         fi
         
         echo "✓ 实例 $instance_id 清理完成"

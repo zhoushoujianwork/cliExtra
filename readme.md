@@ -136,36 +136,64 @@ cliExtra 提供了智能监控守护进程，基于文件时间戳自动检测 a
 - **高性能**: stat系统调用比文本解析效率高数倍
 - **自适应**: 自动适应所有AI agent的输出格式
 
+#### 🔄 自动重启功能（类似 k8s pod）
+
+**重启机制特性**：
+- **智能检测**: 自动检测 tmux 会话异常退出
+- **失败分析**: 记录详细的失败原因（TmuxSessionDied, QChatCrashed, SystemError 等）
+- **重启策略**: 支持 Always, OnFailure, Never 三种策略
+- **指数退避**: 5s → 10s → 20s → ... → 300s 的重启延迟
+- **次数限制**: 最大重启次数限制（10次）防止无限重启
+- **状态记录**: 完整的重启历史和统计信息
+
 #### 功能特点
 - **智能检测**: 基于文件时间戳，避免复杂的文本模式匹配
 - **跨平台兼容**: 支持 macOS 和 Linux 系统
 - **配置灵活**: 支持按 namespace 设置不同的空闲阈值
 - **状态更新**: 自动更新 agent 状态文件（0=idle, 1=busy）
 - **后台运行**: 守护进程模式，不影响正常使用
+- **自动重启**: 类似 k8s pod 的自动重启机制
+- **故障恢复**: 智能故障检测和自动恢复
 
 #### 基本操作
 
 ```bash
-# 启动监控守护进程
-qq wf start
+# 启动监控守护进程（包含自动重启功能）
+qq eg start
 
 # 查看监控状态
-qq wf status
+qq eg status
 
 # 查看监控日志
-qq wf logs
+qq eg logs
 
 # 重启监控
-qq wf restart
+qq eg restart
 
 # 停止监控
-qq wf stop
+qq eg stop
 
 # 状态检测引擎
 qq status-engine health          # 健康检查
 qq status-engine detect <id>     # 检测单个实例状态
 qq status-engine batch           # 批量检测所有实例
 qq status-engine set-threshold <ns> <seconds>  # 设置namespace阈值
+```
+
+#### 🔄 重启管理命令
+
+```bash
+# 查看重启统计
+qq eg restart-stats              # 查看所有实例重启统计
+qq eg restart-stats <instance_id> # 查看指定实例重启历史
+
+# 设置重启策略
+qq eg restart-config <instance_id> Always     # 总是重启（默认）
+qq eg restart-config <instance_id> OnFailure  # 仅在失败时重启
+qq eg restart-config <instance_id> Never      # 从不重启
+
+# 清理重启记录
+qq eg restart-cleanup            # 清理过期的重启记录
 ```
 
 #### 检测规则
@@ -188,19 +216,54 @@ qq status-engine set-threshold frontend 3
 qq status-engine get-threshold frontend
 ```
 
+#### 🔄 自动重启规则
+
+**重启触发条件**：
+- tmux 会话异常退出
+- Q chat 进程崩溃
+- 系统资源不足导致的异常
+- 长时间无响应（可配置）
+
+**重启策略**：
+- **Always**: 总是重启（默认策略）
+- **OnFailure**: 仅在非用户主动操作的失败时重启
+- **Never**: 从不自动重启
+
+**重启延迟算法**：
+```
+第1次重启: 5秒
+第2次重启: 10秒  
+第3次重启: 20秒
+第4次重启: 40秒
+...
+最大延迟: 300秒（5分钟）
+```
+
+**失败原因分类**：
+- `TmuxSessionDied`: tmux 会话异常退出
+- `QChatCrashed`: Q chat 进程崩溃
+- `SystemError`: 系统资源不足
+- `UserKilled`: 用户主动杀死进程
+- `Timeout`: 响应超时
+- `Unknown`: 未知原因
+
 #### 监控日志示例
 ```
-[2025-07-25 10:11:19] [DEBUG] Agent backend-api is waiting for input
-[2025-07-25 10:11:19] [INFO] Updated agent backend-api status: 1 -> 0 (idle)
-[2025-07-25 10:11:22] [DEBUG] Agent frontend-dev is busy
-[2025-07-25 10:11:22] [INFO] Updated agent frontend-dev status: 0 -> 1 (busy)
+[2025-07-27 10:11:19] [DEBUG] Agent backend-api is waiting for input
+[2025-07-27 10:11:19] [INFO] Updated agent backend-api status: 1 -> 0 (idle)
+[2025-07-27 10:11:22] [DEBUG] Agent frontend-dev is busy
+[2025-07-27 10:11:22] [INFO] Updated agent frontend-dev status: 0 -> 1 (busy)
+[2025-07-27 10:11:25] [RESTART-WARN] Instance backend-api tmux session not found, attempting restart
+[2025-07-27 10:11:25] [RESTART-INFO] Waiting 5s before restarting backend-api (attempt #1)
+[2025-07-27 10:11:30] [RESTART-INFO] Successfully restarted instance backend-api
 ```
 
 #### 配置说明
-- **监控间隔**: 2秒检查一次
-- **日志文件**: `~/Library/Application Support/cliExtra/watcher.log`
-- **PID文件**: `~/Library/Application Support/cliExtra/watcher.pid`
-- **检查行数**: 检查终端输出的最后5行
+- **监控间隔**: 3秒检查一次
+- **重启检查**: 30秒检查一次
+- **日志文件**: `~/Library/Application Support/cliExtra/engine.log`
+- **PID文件**: `~/Library/Application Support/cliExtra/engine.pid`
+- **重启记录**: `~/Library/Application Support/cliExtra/namespaces/<namespace>/restart/<instance_id>.restart`
 
 ### 自动恢复功能
 
@@ -298,7 +361,7 @@ tail -f ~/Library/Application\ Support/cliExtra/auto-recovery.log
 ### 实例管理
 
 ```bash
-# 列出默认namespace的实例（简洁格式，每行一个实例ID，包含状态信息）
+# 列出默认namespace的实例（简洁格式，每行一个实例ID，包含状态信息和重启次数）
 qq list
 
 # 列出所有namespace的实例（使用 -A 或 --all 参数）
@@ -309,16 +372,16 @@ qq list --all
 qq list --namespace frontend
 qq list -n backend
 
-# 列出默认namespace的实例（JSON格式，包含详细信息）
+# 列出默认namespace的实例（JSON格式，包含详细信息和重启次数）
 qq list -o json
 
 # 列出所有namespace的实例（JSON格式）
 qq list -A -o json
 
-# 显示指定实例的详细信息（包含namespace和状态）
+# 显示指定实例的详细信息（包含namespace、状态和重启次数）
 qq list myinstance
 
-# 显示指定实例的详细信息（JSON格式，包含namespace和状态）
+# 显示指定实例的详细信息（JSON格式，包含namespace、状态和重启次数）
 qq list myinstance -o json
 
 # 发送消息到实例
@@ -355,6 +418,12 @@ qq clean all --namespace backend --dry-run
 - `idle` - 空闲，可接收新任务
 - `busy` - 忙碌，正在处理任务  
 - `stopped` - 实例已停止
+
+**重启次数显示**:
+- `qq list` 命令现在显示每个实例的重启次数
+- 表格格式中的 `RESTARTS` 列显示自动重启次数
+- JSON 格式中的 `restart_count` 字段包含重启次数
+- 详细信息中显示 `重启次数: X` 信息
 
 **状态文件位置**: `~/Library/Application Support/cliExtra/namespaces/<namespace>/status/<instance_id>.status`
 
@@ -522,9 +591,9 @@ qq tools list -o json
 qq tools show git
 qq tools show dingtalk
 
-# 添加工具到当前项目（自动覆盖已存在的工具）
-qq tools add git              # 添加git工具
-qq tools add dingtalk         # 添加钉钉工具
+# 创建工具软链接到当前项目（自动覆盖已存在的工具）
+qq tools add git              # 创建git工具软链接
+qq tools add dingtalk         # 创建钉钉工具软链接
 
 # 移除项目中的工具
 qq tools remove git           # 移除git工具
@@ -533,11 +602,23 @@ qq tools remove dingtalk      # 移除钉钉工具
 # 查看当前项目已安装的工具
 qq tools installed
 
+# 软链接管理（新功能）
+qq tools check-links          # 检查工具软链接状态
+qq tools repair-links         # 修复损坏的软链接
+qq tools convert-to-links     # 将普通文件转换为软链接
+
 # 指定项目路径操作工具
 qq tools add git --project /path/to/project
 ```
 
-**注意**: `qq tools add` 命令会自动覆盖已存在的同名工具，确保使用最新版本的工具配置。
+#### 🔗 软链接优势
+
+**实时更新**: 使用软链接替代文件复制，修改源文件后所有项目立即获取最新版本
+- **统一管理**: 所有定义文件集中在源目录，便于版本控制
+- **减少冗余**: 避免多份相同文件的存储
+- **一处修改，处处生效**: 修改 rules、roles、tools 后立即在所有项目中生效
+
+**注意**: `qq tools add` 命令现在创建软链接而非复制文件，确保使用最新版本的工具配置。
 
 ### 对话记录和回放
 

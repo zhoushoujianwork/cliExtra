@@ -5,6 +5,7 @@
 # 加载公共函数
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-common.sh"
+source "$SCRIPT_DIR/cliExtra-restart-manager.sh"
 
 # 显示帮助
 show_help() {
@@ -17,6 +18,12 @@ show_help() {
     echo "  restart   重启监控守护引擎"
     echo "  logs      查看监控日志"
     echo ""
+    echo "重启管理命令:"
+    echo "  restart-stats [instance_id]    显示重启统计信息"
+    echo "  restart-history <instance_id>  显示实例重启历史"
+    echo "  restart-cleanup                清理过期的重启记录"
+    echo "  restart-config <instance_id> <policy>  设置重启策略"
+    echo ""
     echo "logs 命令用法:"
     echo "  qq eg logs [lines]           # 显示最近指定行数的日志（默认20行）"
     echo "  qq eg logs -f                # 实时跟踪日志（tail -f 模式）"
@@ -26,6 +33,11 @@ show_help() {
     echo "  qq eg logs --lines 100       # 显示最近100行日志"
     echo "  qq eg logs 30 -f             # 显示最近30行并开始实时跟踪"
     echo ""
+    echo "重启策略选项:"
+    echo "  Always      总是重启（默认）"
+    echo "  OnFailure   仅在失败时重启"
+    echo "  Never       从不重启"
+    echo ""
     echo "功能说明:"
     echo "  监控守护引擎会自动："
     echo "  - 监控所有 agent 的 tmux 终端输出"
@@ -33,6 +45,9 @@ show_help() {
     echo "  - 检测忙碌关键词判断工作状态"
     echo "  - 自动更新 agent 状态文件（0=idle, 1=busy）"
     echo "  - 检查和修复各 namespace 的 system agent"
+    echo "  - 🔄 自动重启异常退出的实例（类似 k8s pod）"
+    echo "  - 📊 记录重启次数和失败原因"
+    echo "  - 🛡️ 指数退避重启策略防止无限重启"
     echo ""
     echo "等待符检测模式:"
     echo "  - '> '                    # 基本提示符"
@@ -44,11 +59,21 @@ show_help() {
     echo "  - 'Generating', 'Building', 'Working'"
     echo "  - 'Please wait', '...' 等"
     echo ""
+    echo "自动重启功能:"
+    echo "  - 检测 tmux 会话异常退出"
+    echo "  - 记录失败原因：TmuxSessionDied, QChatCrashed, SystemError 等"
+    echo "  - 指数退避延迟：5s -> 10s -> 20s -> ... -> 300s"
+    echo "  - 最大重启次数：10次"
+    echo "  - 跳过 system 实例和用户主动杀死的实例"
+    echo ""
     echo "示例:"
-    echo "  cliExtra eg start    # 启动监控引擎"
-    echo "  cliExtra eg status   # 查看引擎状态"
-    echo "  cliExtra eg logs     # 查看日志"
-    echo "  cliExtra eg stop     # 停止监控引擎"
+    echo "  cliExtra eg start              # 启动监控引擎（包含自动重启）"
+    echo "  cliExtra eg status             # 查看引擎状态"
+    echo "  cliExtra eg logs               # 查看日志"
+    echo "  cliExtra eg restart-stats      # 查看所有实例重启统计"
+    echo "  cliExtra eg restart-history myinstance  # 查看实例重启历史"
+    echo "  cliExtra eg restart-config myinstance Never  # 禁用实例自动重启"
+    echo "  cliExtra eg stop               # 停止监控引擎"
 }
 
 # 查看监控日志
@@ -74,6 +99,59 @@ show_logs() {
         echo "日志文件: $log_file"
         echo ""
         tail -n "$lines" "$log_file"
+    fi
+}
+
+# 设置重启策略
+set_restart_policy() {
+    local instance_id="$1"
+    local policy="$2"
+    
+    if [[ -z "$instance_id" || -z "$policy" ]]; then
+        echo "❌ 用法: qq eg restart-config <instance_id> <policy>"
+        echo "策略选项: Always, OnFailure, Never"
+        return 1
+    fi
+    
+    # 验证策略
+    case "$policy" in
+        "Always"|"OnFailure"|"Never")
+            ;;
+        *)
+            echo "❌ 无效的重启策略: $policy"
+            echo "有效选项: Always, OnFailure, Never"
+            return 1
+            ;;
+    esac
+    
+    # 获取实例的 namespace
+    local namespace=$(get_instance_namespace "$instance_id")
+    if [[ -z "$namespace" ]]; then
+        namespace="$CLIEXTRA_DEFAULT_NS"
+    fi
+    
+    # 检查实例是否存在
+    local instance_dir="$CLIEXTRA_HOME/namespaces/$namespace/instances/instance_$instance_id"
+    if [[ ! -d "$instance_dir" ]]; then
+        echo "❌ 实例不存在: $instance_id"
+        return 1
+    fi
+    
+    # 读取当前重启记录
+    local record=$(read_restart_record "$instance_id" "$namespace")
+    
+    # 更新重启策略
+    if command -v jq >/dev/null 2>&1; then
+        local updated_record
+        updated_record=$(echo "$record" | jq --arg policy "$policy" '.restart_policy = $policy')
+        
+        local record_file=$(get_restart_record_file "$instance_id" "$namespace")
+        echo "$updated_record" > "$record_file"
+        
+        echo "✅ 已设置实例 $instance_id 的重启策略为: $policy"
+    else
+        echo "⚠️  需要安装 jq 来设置重启策略"
+        return 1
     fi
 }
 
@@ -130,6 +208,45 @@ case "${1:-}" in
         }
         
         parse_logs_args "${@:2}"
+        ;;
+    restart-stats)
+        instance_id="$2"
+        namespace="$3"
+        
+        if [[ -n "$instance_id" ]]; then
+            if [[ -z "$namespace" ]]; then
+                namespace=$(get_instance_namespace "$instance_id")
+                if [[ -z "$namespace" ]]; then
+                    namespace="$CLIEXTRA_DEFAULT_NS"
+                fi
+            fi
+        fi
+        
+        show_restart_stats "$namespace" "$instance_id"
+        ;;
+    restart-history)
+        instance_id="$2"
+        
+        if [[ -z "$instance_id" ]]; then
+            echo "❌ 请指定实例ID"
+            echo "用法: qq eg restart-history <instance_id>"
+            exit 1
+        fi
+        
+        namespace=$(get_instance_namespace "$instance_id")
+        if [[ -z "$namespace" ]]; then
+            namespace="$CLIEXTRA_DEFAULT_NS"
+        fi
+        
+        show_restart_stats "$namespace" "$instance_id"
+        ;;
+    restart-cleanup)
+        echo "🧹 清理过期的重启记录..."
+        cleanup_restart_records
+        echo "✅ 清理完成"
+        ;;
+    restart-config)
+        set_restart_policy "$2" "$3"
         ;;
     --help|-h|help)
         show_help

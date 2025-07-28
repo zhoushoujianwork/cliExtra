@@ -31,14 +31,15 @@ show_help() {
     echo "  $0 set-ns <id> <namespace>   - 修改实例的namespace"
     echo "  $0 cleanup-invalid-ns        - 清理无效的namespace目录"
     echo "  $0 sender-stats [time]       - 查看发送者统计信息"
-    echo "  $0 eg <command>              - 监控守护引擎管理 (start|stop|status)"
+    echo "  $0 eg <command>              - 监控守护引擎管理 (start|stop|status|restart-stats)"
     echo "  $0 status-engine <command>   - 状态检测引擎 (detect|batch|health)"
     echo "  $0 dag <command>             - DAG 工作流管理 (list|show|create)"
-    echo "  $0 auto-recovery <command>   - 自动恢复管理 (start|stop|status|recover-all)"
+    echo "  $0 auto-recovery <command>   - 自动恢复管理 (已弃用，功能已集成到 eg)"
     echo "  $0 recover-all [options]     - 立即恢复所有停止的实例"
 
     echo "  $0 broadcast <message>       - 广播消息到实例"
     echo "  $0 tools <command>           - 工具管理"
+    echo "  $0 sync-historical           - 同步历史实例到软链接方式"
     echo "  $0 replay <command>          - 对话回放"
     echo "  $0 help                      - 显示此帮助"
     echo ""
@@ -88,7 +89,7 @@ show_help() {
     echo "  $0 eg start                  # 启动监控守护引擎"
     echo "  $0 eg status                 # 查看监控状态"
     echo "  $0 dag list                  # 列出 DAG 实例"
-    echo "  $0 tools add git             # 添加git工具到当前项目"
+    echo "  $0 tools add git             # 创建git工具软链接到当前项目"
     echo "  $0 replay instance backend-api  # 回放backend-api实例的对话"
     echo ""
     echo "tmux操作:"
@@ -215,6 +216,9 @@ case "${1:-}" in
         "$SCRIPT_DIR/bin/cliExtra-api-server.sh" "${@:2}"
         ;;
     
+    "sync-historical")
+        "$SCRIPT_DIR/scripts/sync-historical-instances.sh"
+        ;;
     "help"|"")
         show_help
         ;;

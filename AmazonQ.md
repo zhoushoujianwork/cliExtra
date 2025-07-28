@@ -1,5 +1,241 @@
 每次功能完成后记得更新 README.md 文件；
 
+## 2025-07-27 qq list 集成重启次数显示功能
+
+### 📊 功能增强：在实例列表中显示重启次数
+将重启次数信息集成到 `qq list` 命令中，方便用户查看每个实例的重启情况。
+
+#### 核心特性
+1. **表格格式增强**: 在表格输出中添加 `RESTARTS` 列显示重启次数
+2. **JSON 格式增强**: 在 JSON 输出中添加 `restart_count` 字段
+3. **详细信息增强**: 在单个实例详细信息中显示重启次数
+4. **智能获取**: 自动从重启记录文件中读取重启次数，无记录时显示 0
+
+#### 实现的功能
+1. **重启次数获取函数**: `get_instance_restart_count()`
+   - 从重启记录文件中读取重启次数
+   - 支持 jq 和简单文本解析两种方式
+   - 无记录时返回 0
+
+2. **表格输出增强**: 
+   - 添加 `RESTARTS` 列（宽度 10 字符）
+   - 显示每个实例的重启次数
+   - 保持原有的列对齐格式
+
+3. **JSON 输出增强**:
+   - 在 `get_instance_rich_info()` 中添加重启次数获取
+   - 在所有 JSON 输出函数中添加 `restart_count` 字段
+   - 保持 JSON 格式的完整性
+
+4. **详细信息增强**:
+   - 在 `output_instance_details()` 中添加重启次数显示
+   - 格式：`重启次数: X`
+
+#### 技术实现
+1. **文件修改**:
+   - `bin/cliExtra-list.sh` - 添加重启次数获取和显示逻辑
+   - 引入 `cliExtra-restart-manager.sh` 依赖
+
+2. **重启次数获取逻辑**:
+   ```bash
+   get_instance_restart_count() {
+       local instance_id="$1"
+       local namespace="$2"
+       local record_file=$(get_restart_record_file "$instance_id" "$namespace")
+       
+       if [[ -f "$record_file" ]]; then
+           # 使用 jq 或文本解析获取 restart_count
+           restart_count=$(cat "$record_file" | jq -r '.restart_count // 0')
+           echo "${restart_count:-0}"
+       else
+           echo "0"
+       fi
+   }
+   ```
+
+3. **输出格式变更**:
+   - 表格格式：`NAME NAMESPACE STATUS SESSION ROLE RESTARTS`
+   - JSON 格式：添加 `"restart_count": X` 字段
+   - 详细信息：添加 `重启次数: X` 行
+
+#### 用户价值
+- **一目了然**: 在实例列表中直接查看重启次数，快速识别问题实例
+- **运维监控**: 方便运维人员监控实例稳定性
+- **问题诊断**: 重启次数高的实例可能存在问题，需要关注
+- **脚本友好**: JSON 格式包含重启次数，便于脚本处理
+
+#### 测试验证
+- ✅ 表格格式正确显示重启次数列
+- ✅ JSON 格式包含 restart_count 字段
+- ✅ 详细信息显示重启次数
+- ✅ 无重启记录的实例显示 0
+- ✅ 有重启记录的实例显示正确次数
+- ✅ 向后兼容性保持
+
+#### 使用示例
+```bash
+# 表格格式查看重启次数
+qq list -A
+# 输出包含 RESTARTS 列
+
+# JSON 格式查看重启次数
+qq list -A -o json
+# 输出包含 "restart_count" 字段
+
+# 查看单个实例重启次数
+qq list patsnap-xops_system
+# 输出包含 "重启次数: 1"
+```
+
+#### 输出示例
+**表格格式**:
+```
+NAME                           NAMESPACE       STATUS          SESSION         ROLE            RESTARTS  
+------------------------------ --------------- --------------- --------------- --------------- ----------
+patsnap-xops_system            patsnap-xops    idle            q_instance_patsnap-xops_system                 1         
+backend-api_1753585861_32737   default         idle            q_instance_backend-api_1753585861_32737 golang          1         
+admin-web_1753585814_5405      default         idle            q_instance_admin-web_1753585814_5405 vue             0         
+```
+
+**JSON 格式**:
+```json
+{
+  "id": "patsnap-xops_system",
+  "status": "idle",
+  "namespace": "patsnap-xops",
+  "restart_count": 1,
+  ...
+}
+```
+
+#### 向后兼容性
+- ✅ 保持现有命令行接口不变
+- ✅ 只是增加显示信息，不影响现有功能
+- ✅ JSON 格式向前兼容
+- ✅ 不影响脚本解析
+
+#### 技术优势
+- **统一数据源**: 使用重启管理器的记录文件作为数据源
+- **高效获取**: 直接读取 JSON 文件，性能良好
+- **容错处理**: 无记录文件时优雅降级为 0
+- **格式一致**: 所有输出格式都包含重启次数信息
+
+## 2025-07-27 自动重启功能集成到 qq eg 守护进程
+
+### 🔄 功能集成：类似 k8s pod 的自动重启机制
+将 auto-recovery 功能完全集成到 `qq eg` 守护进程中，实现了类似 Kubernetes pod 的自动重启和状态记录功能。
+
+#### 核心特性
+1. **智能故障检测**: 自动检测 tmux 会话异常退出、Q chat 进程崩溃等故障
+2. **重启策略管理**: 支持 Always、OnFailure、Never 三种重启策略
+3. **指数退避算法**: 5s → 10s → 20s → ... → 300s 的重启延迟，防止无限重启
+4. **失败原因记录**: 详细记录失败原因（TmuxSessionDied、QChatCrashed、SystemError 等）
+5. **重启次数限制**: 最大重启次数限制（10次）防止资源浪费
+6. **完整状态记录**: JSON 格式记录重启历史和统计信息
+
+#### 实现的功能
+1. **重启管理器**: `cliExtra-restart-manager.sh` - 核心重启逻辑和记录管理
+   - `init_restart_record()` - 初始化重启记录
+   - `update_restart_record()` - 更新重启记录
+   - `detect_failure_reason()` - 检测失败原因
+   - `restart_instance()` - 执行实例重启
+   - `check_instance_for_restart()` - 检查实例是否需要重启
+
+2. **守护进程集成**: 在 `cliExtra-engine-daemon.sh` 中集成自动重启检查
+   - 每30秒检查一次所有实例状态
+   - 自动检测异常退出的实例并尝试重启
+   - 记录详细的重启日志和统计信息
+
+3. **命令行管理**: 扩展 `qq eg` 命令支持重启管理
+   - `qq eg restart-stats` - 查看重启统计
+   - `qq eg restart-config <id> <policy>` - 设置重启策略
+   - `qq eg restart-cleanup` - 清理过期记录
+
+4. **生命周期集成**: 在实例启动、停止、清理时自动管理重启记录
+   - 启动时初始化重启记录
+   - 停止时清理重启记录（用户主动操作）
+   - 清理时删除重启记录
+
+#### 技术实现
+1. **重启记录格式**: JSON 格式存储在 `~/Library/Application Support/cliExtra/namespaces/<namespace>/restart/<instance_id>.restart`
+   ```json
+   {
+     "instance_id": "test-instance",
+     "namespace": "default",
+     "restart_policy": "Always",
+     "restart_count": 3,
+     "last_restart_time": "2025-07-27T12:00:00Z",
+     "last_failure_reason": "TmuxSessionDied",
+     "restart_history": [...]
+   }
+   ```
+
+2. **失败原因分类**:
+   - `TmuxSessionDied`: tmux 会话异常退出
+   - `QChatCrashed`: Q chat 进程崩溃
+   - `SystemError`: 系统资源不足
+   - `UserKilled`: 用户主动杀死进程
+   - `Timeout`: 响应超时
+   - `Unknown`: 未知原因
+
+3. **重启策略逻辑**:
+   - `Always`: 总是重启（默认）
+   - `OnFailure`: 仅在非用户主动操作的失败时重启
+   - `Never`: 从不自动重启
+
+4. **指数退避算法**: 防止频繁重启消耗系统资源
+   ```bash
+   delay = base_delay * (multiplier ^ (restart_count - 1))
+   max_delay = 300s (5分钟)
+   ```
+
+#### 用户价值
+- **高可用性**: 自动恢复异常退出的实例，确保服务连续性
+- **智能管理**: 基于失败原因和重启策略的智能重启决策
+- **可观测性**: 完整的重启历史和统计信息，便于问题诊断
+- **资源保护**: 指数退避和次数限制防止无限重启
+- **用户友好**: 集成到现有的 `qq eg` 命令，使用简单
+
+#### 测试验证
+- ✅ 重启记录初始化和清理功能正常
+- ✅ 重启策略配置和应用功能正常
+- ✅ 失败原因检测和记录功能正常
+- ✅ 指数退避重启延迟功能正常
+- ✅ 守护进程集成功能正常
+- ✅ 命令行管理功能正常
+
+#### 使用示例
+```bash
+# 启动监控守护进程（包含自动重启）
+qq eg start
+
+# 查看重启统计
+qq eg restart-stats
+qq eg restart-stats myinstance
+
+# 设置重启策略
+qq eg restart-config myinstance Never
+
+# 查看监控日志（包含重启信息）
+qq eg logs
+
+# 清理过期重启记录
+qq eg restart-cleanup
+```
+
+#### 向后兼容性
+- ✅ 保持现有 `auto-recovery` 命令可用（标记为已弃用）
+- ✅ 新功能完全集成到 `qq eg` 中，使用更统一
+- ✅ 不影响现有实例的运行和管理
+- ✅ 重启记录格式向前兼容
+
+#### 技术优势
+- **统一管理**: 状态监控和自动重启集成在同一个守护进程中
+- **高效检测**: 基于时间戳的状态检测 + 定期重启检查
+- **智能决策**: 基于失败原因和重启策略的智能重启
+- **完整记录**: 类似 k8s 的完整重启历史和统计
+- **资源友好**: 指数退避和限制机制防止资源浪费
+
 ## 2025-07-27 qq send 状态更新机制完善
 
 ### 🔧 功能完善：消息发送状态更新机制

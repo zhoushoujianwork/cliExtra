@@ -512,19 +512,40 @@ sync_rules_to_project() {
         return 1
     fi
     
-    echo "同步rules到项目目录..."
+    echo "创建rules软链接到项目目录..."
     echo "源目录: $rules_source_dir"
     echo "目标目录: $rules_target_dir"
     
-    # 同步所有rules文件
-    if cp -r "$rules_source_dir"/* "$rules_target_dir/" 2>/dev/null; then
-        echo "✓ rules同步完成"
-        
-        # 列出同步的文件
-        echo "已同步的rules文件:"
-        ls -la "$rules_target_dir" | grep -v "^total" | awk '{print "  - " $9}' | grep -v "^  - $"
+    local linked_count=0
+    local failed_count=0
+    
+    # 为每个rules文件创建软链接
+    for rule_file in "$rules_source_dir"/*.md; do
+        if [[ -f "$rule_file" ]]; then
+            local filename=$(basename "$rule_file")
+            local target_link="$rules_target_dir/$filename"
+            
+            # 如果已存在，先删除（可能是旧的复制文件或损坏的链接）
+            [[ -e "$target_link" || -L "$target_link" ]] && rm -f "$target_link"
+            
+            # 创建软链接
+            if ln -s "$rule_file" "$target_link"; then
+                echo "  ✓ $filename -> 软链接创建成功"
+                ((linked_count++))
+            else
+                echo "  ⚠ $filename -> 软链接创建失败"
+                ((failed_count++))
+            fi
+        fi
+    done
+    
+    if [[ $linked_count -gt 0 ]]; then
+        echo "✓ rules软链接创建完成 ($linked_count 个文件)"
+        if [[ $failed_count -gt 0 ]]; then
+            echo "⚠ $failed_count 个文件创建失败"
+        fi
     else
-        echo "⚠ rules同步失败或源目录为空"
+        echo "⚠ 未找到rules文件或全部创建失败"
     fi
 }
 # 从指定实例加载历史上下文
@@ -716,6 +737,16 @@ $role_content
                 echo "✓ 状态文件已创建"
             else
                 echo "⚠️  状态文件创建失败，但不影响实例运行"
+            fi
+        fi
+        
+        # 初始化重启记录
+        if [ -f "$SCRIPT_DIR/cliExtra-restart-manager.sh" ]; then
+            source "$SCRIPT_DIR/cliExtra-restart-manager.sh"
+            if init_restart_record "$instance_id" "$namespace" "Always"; then
+                echo "✓ 重启记录已初始化"
+            else
+                echo "⚠️  重启记录初始化失败，但不影响实例运行"
             fi
         fi
         

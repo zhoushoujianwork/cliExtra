@@ -278,6 +278,57 @@ if [[ -z "$PROJECT_DIR" ]]; then
     PROJECT_DIR=$(get_project_dir)
 fi
 
+# 主逻辑
+case "$COMMAND" in
+    "list")
+        list_available_tools "$OUTPUT_FORMAT"
+        ;;
+    "add")
+        if [[ -z "$TOOL_NAME" ]]; then
+            echo "错误: 请指定要添加的工具名称"
+            show_help
+            exit 1
+        fi
+        add_tool_to_project "$TOOL_NAME" "$PROJECT_DIR"
+        ;;
+    "remove")
+        if [[ -z "$TOOL_NAME" ]]; then
+            echo "错误: 请指定要移除的工具名称"
+            show_help
+            exit 1
+        fi
+        remove_tool_from_project "$TOOL_NAME" "$PROJECT_DIR"
+        ;;
+    "show")
+        if [[ -z "$TOOL_NAME" ]]; then
+            echo "错误: 请指定要查看的工具名称"
+            show_help
+            exit 1
+        fi
+        show_tool_info "$TOOL_NAME"
+        ;;
+    "installed")
+        show_installed_tools "$PROJECT_DIR"
+        ;;
+    "check-links")
+        check_tool_links "$PROJECT_DIR"
+        ;;
+    "repair-links")
+        repair_tool_links "$PROJECT_DIR"
+        ;;
+    "convert-to-links")
+        convert_to_links "$PROJECT_DIR"
+        ;;
+    "")
+        show_help
+        ;;
+    *)
+        echo "未知命令: $COMMAND"
+        show_help
+        exit 1
+        ;;
+esac
+
 # 检查工具软链接状态
 check_tool_links() {
     local project_dir="$1"
@@ -436,54 +487,3 @@ convert_to_links() {
     echo "转换结果: $converted_count 个成功, $failed_count 个失败"
     return $failed_count
 }
-
-# 主逻辑
-case "$COMMAND" in
-    "list")
-        list_available_tools "$OUTPUT_FORMAT"
-        ;;
-    "add")
-        if [[ -z "$TOOL_NAME" ]]; then
-            echo "错误: 请指定要添加的工具名称"
-            show_help
-            exit 1
-        fi
-        add_tool_to_project "$TOOL_NAME" "$PROJECT_DIR"
-        ;;
-    "remove")
-        if [[ -z "$TOOL_NAME" ]]; then
-            echo "错误: 请指定要移除的工具名称"
-            show_help
-            exit 1
-        fi
-        remove_tool_from_project "$TOOL_NAME" "$PROJECT_DIR"
-        ;;
-    "show")
-        if [[ -z "$TOOL_NAME" ]]; then
-            echo "错误: 请指定要查看的工具名称"
-            show_help
-            exit 1
-        fi
-        show_tool_info "$TOOL_NAME"
-        ;;
-    "installed")
-        show_installed_tools "$PROJECT_DIR"
-        ;;
-    "check-links")
-        check_tool_links "$PROJECT_DIR"
-        ;;
-    "repair-links")
-        repair_tool_links "$PROJECT_DIR"
-        ;;
-    "convert-to-links")
-        convert_to_links "$PROJECT_DIR"
-        ;;
-    "")
-        show_help
-        ;;
-    *)
-        echo "未知命令: $COMMAND"
-        show_help
-        exit 1
-        ;;
-esac

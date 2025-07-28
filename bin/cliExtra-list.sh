@@ -6,6 +6,34 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/cliExtra-common.sh"
 source "$SCRIPT_DIR/cliExtra-status-manager.sh"
+source "$SCRIPT_DIR/cliExtra-restart-manager.sh"
+
+# 获取实例重启次数
+get_instance_restart_count() {
+    local instance_id="$1"
+    local namespace="$2"
+    
+    if [[ -z "$namespace" ]]; then
+        namespace="$CLIEXTRA_DEFAULT_NS"
+    fi
+    
+    local record_file=$(get_restart_record_file "$instance_id" "$namespace")
+    
+    if [[ -f "$record_file" ]]; then
+        if command -v jq >/dev/null 2>&1; then
+            local restart_count
+            restart_count=$(cat "$record_file" | jq -r '.restart_count // 0' 2>/dev/null)
+            echo "${restart_count:-0}"
+        else
+            # 简单的文本解析
+            local restart_count
+            restart_count=$(grep '"restart_count"' "$record_file" 2>/dev/null | sed 's/.*: *\([0-9]*\).*/\1/' | head -1)
+            echo "${restart_count:-0}"
+        fi
+    else
+        echo "0"
+    fi
+}
 
 # 显示帮助
 show_help() {
@@ -26,10 +54,10 @@ show_help() {
     echo "  使用 -n/--namespace 显示指定 namespace 的实例"
     echo ""
     echo "输出格式:"
-    echo "  默认: 表格格式显示实例信息（包含 namespace、状态等）"
+    echo "  默认: 表格格式显示实例信息（包含 namespace、状态、重启次数等）"
     echo "  --names-only: 每行一个实例ID，便于脚本解析"
-    echo "  有实例ID: 显示该实例的详细信息"
-    echo "  -o json: 结构化的JSON格式输出"
+    echo "  有实例ID: 显示该实例的详细信息（包含重启次数）"
+    echo "  -o json: 结构化的JSON格式输出（包含 restart_count 字段）"
     echo ""
     echo "示例:"
     echo "  cliExtra list                         # 只显示 default namespace 的实例"
@@ -408,16 +436,17 @@ output_simple() {
     fi
     
     # 输出表头
-    printf "%-30s %-15s %-15s %-15s %-15s\n" "NAME" "NAMESPACE" "STATUS" "SESSION" "ROLE"
+    printf "%-30s %-15s %-15s %-15s %-15s %-10s\n" "NAME" "NAMESPACE" "STATUS" "SESSION" "ROLE" "RESTARTS"
     
     # 输出分隔线
-    printf "%-30s %-15s %-15s %-15s %-15s\n" "$(printf '%*s' 30 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')"
+    printf "%-30s %-15s %-15s %-15s %-15s %-10s\n" "$(printf '%*s' 30 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 15 | tr ' ' '-')" "$(printf '%*s' 10 | tr ' ' '-')"
     
     # 输出实例信息
     for data in "${instance_data[@]}"; do
         IFS=':' read -r instance_id status session_name namespace <<< "$data"
         local role=$(get_instance_role "$instance_id" "$namespace")
-        printf "%-30s %-15s %-15s %-15s %-15s\n" "$instance_id" "$namespace" "$status" "$session_name" "$role"
+        local restart_count=$(get_instance_restart_count "$instance_id" "$namespace")
+        printf "%-30s %-15s %-15s %-15s %-15s %-10s\n" "$instance_id" "$namespace" "$status" "$session_name" "$role" "$restart_count"
     done
 }
 
@@ -461,6 +490,9 @@ get_instance_rich_info() {
     
     # 获取角色信息
     role=$(get_instance_role "$instance_id" "$namespace")
+    
+    # 获取重启次数
+    local restart_count=$(get_instance_restart_count "$instance_id" "$namespace")
     
     # 获取工具列表
     if [[ -n "$project_dir" && -d "$project_dir/.amazonq/rules" ]]; then
@@ -514,6 +546,7 @@ get_instance_rich_info() {
     echo -n "\"tools\": $tools_json, "
     echo -n "\"started_at\": \"${started_at:-""}\", "
     echo -n "\"pid\": \"${pid:-""}\", "
+    echo -n "\"restart_count\": $restart_count, "
     echo -n "\"log_file\": \"${log_file:-""}\", "
     echo -n "\"log_size\": $log_size, "
     echo -n "\"log_modified\": \"${log_modified:-""}\", "
@@ -577,6 +610,10 @@ output_instance_details() {
     echo "项目目录: ${project_dir:-"未找到"}"
     echo "实例目录: ${instance_dir:-"未找到"}"
     echo "日志文件: ${log_file:-"未找到"}"
+    
+    # 添加重启次数信息
+    local restart_count=$(get_instance_restart_count "$instance_id" "$namespace")
+    echo "重启次数: $restart_count"
     
     if [[ -f "$log_file" ]]; then
         echo "日志大小: $(numfmt --to=iec $log_size 2>/dev/null || echo "${log_size} bytes")"
@@ -668,6 +705,9 @@ output_instance_json() {
     # 获取角色信息
     role=$(get_instance_role "$instance_id" "$namespace")
     
+    # 获取重启次数
+    local restart_count=$(get_instance_restart_count "$instance_id" "$namespace")
+    
     # 获取工具列表
     if [[ -n "$project_dir" && -d "$project_dir/.amazonq/rules" ]]; then
         for tool_file in "$project_dir/.amazonq/rules"/tools_*.md; do
@@ -706,6 +746,7 @@ output_instance_json() {
     echo "  \"tools\": $tools_json,"
     echo "  \"started_at\": \"${started_at:-""}\","
     echo "  \"pid\": \"${pid:-""}\","
+    echo "  \"restart_count\": $restart_count,"
     echo "  \"instance_dir\": \"${instance_dir:-null}\","
     echo "  \"log_file\": \"${log_file:-null}\","
     

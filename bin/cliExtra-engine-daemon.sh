@@ -10,6 +10,7 @@ source "$SCRIPT_DIR/cliExtra-common.sh"
 source "$SCRIPT_DIR/cliExtra-status-manager.sh"
 source "$SCRIPT_DIR/cliExtra-status-engine.sh"
 source "$SCRIPT_DIR/cliExtra-dag-monitor.sh"
+source "$SCRIPT_DIR/cliExtra-restart-manager.sh"
 
 # 守护进程配置
 DAEMON_NAME="cliExtra-engine"
@@ -27,6 +28,11 @@ DAG_MONITOR_INTERVAL=10       # DAG 监控间隔（秒）
 DAG_NODE_TIMEOUT=1800         # 节点执行超时时间（30分钟）
 DAG_INSTANCE_TIMEOUT=7200     # DAG 实例总超时时间（2小时）
 DAG_CLEANUP_INTERVAL=3600     # 清理间隔（1小时）
+
+# 自动重启配置
+AUTO_RESTART_ENABLED=true     # 启用自动重启
+RESTART_CHECK_INTERVAL=30     # 重启检查间隔（秒）
+RESTART_CLEANUP_INTERVAL=1800 # 重启记录清理间隔（30分钟）
 
 # 日志函数
 log_message() {
@@ -189,11 +195,15 @@ monitor_loop() {
     local dag_monitor_cycle=0
     local system_check_cycle=0
     local cleanup_cycle=0
+    local restart_check_cycle=0
+    local restart_cleanup_cycle=0
     
     # 计算监控周期
     local dag_monitor_interval=$((DAG_MONITOR_INTERVAL / MONITOR_INTERVAL))
     local system_check_interval_cycles=$((SYSTEM_CHECK_INTERVAL / MONITOR_INTERVAL))
     local cleanup_interval_cycles=$((DAG_CLEANUP_INTERVAL / MONITOR_INTERVAL))
+    local restart_check_interval_cycles=$((RESTART_CHECK_INTERVAL / MONITOR_INTERVAL))
+    local restart_cleanup_interval_cycles=$((RESTART_CLEANUP_INTERVAL / MONITOR_INTERVAL))
     
     while true; do
         cycle_count=$((cycle_count + 1))
@@ -209,6 +219,31 @@ monitor_loop() {
             # 监控每个 agent
             for agent in "${agents[@]}"; do
                 monitor_agent "$agent"
+            done
+        fi
+        
+        # 自动重启检查（每 30 秒执行一次）
+        if [[ "$AUTO_RESTART_ENABLED" == "true" && $((cycle_count % restart_check_interval_cycles)) -eq 0 ]]; then
+            log_message "DEBUG" "Running auto-restart check cycle"
+            
+            # 检查所有已知实例是否需要重启
+            for ns_dir in "$CLIEXTRA_HOME/namespaces"/*; do
+                if [[ ! -d "$ns_dir/instances" ]]; then
+                    continue
+                fi
+                
+                for instance_dir in "$ns_dir/instances"/instance_*; do
+                    if [[ ! -d "$instance_dir" ]]; then
+                        continue
+                    fi
+                    
+                    local instance_id
+                    instance_id=$(basename "$instance_dir" | sed 's/^instance_//')
+                    
+                    if [[ -n "$instance_id" ]]; then
+                        check_instance_for_restart "$instance_id"
+                    fi
+                done
             done
         fi
         
@@ -228,6 +263,12 @@ monitor_loop() {
         if [[ $((cycle_count % cleanup_interval_cycles)) -eq 0 ]]; then
             log_message "DEBUG" "Running DAG cleanup cycle"
             cleanup_expired_dags
+        fi
+        
+        # 重启记录清理（每 30 分钟执行一次）
+        if [[ $((cycle_count % restart_cleanup_interval_cycles)) -eq 0 ]]; then
+            log_message "DEBUG" "Running restart records cleanup cycle"
+            cleanup_restart_records
         fi
         
         # 等待下一次检查
@@ -348,20 +389,32 @@ show_help() {
     echo "  - 自动更新 agent 状态文件（0=idle, 1=busy）"
     echo "  - 支持按 namespace 配置不同的空闲阈值"
     echo "  - 跨平台兼容（macOS/Linux）"
+    echo "  - 🔄 自动重启功能（类似 k8s pod）"
+    echo "  - 📊 重启次数和失败原因记录"
+    echo "  - 🛡️ 指数退避重启策略"
     echo ""
     echo "检测原理:"
     echo "  - 空闲检测: tmux.log 文件超过阈值时间未更新"
     echo "  - 忙碌检测: tmux.log 文件在阈值时间内有更新"
     echo "  - 默认阈值: ${DEFAULT_IDLE_THRESHOLD}秒"
     echo ""
+    echo "自动重启功能:"
+    echo "  - 检测 tmux 会话异常退出"
+    echo "  - 记录失败原因和重启次数"
+    echo "  - 指数退避重启延迟（5s -> 10s -> 20s -> ... -> 300s）"
+    echo "  - 最大重启次数限制（10次）"
+    echo "  - 支持重启策略：Always, OnFailure, Never"
+    echo ""
     echo "配置:"
     echo "  监控间隔: ${MONITOR_INTERVAL}s"
     echo "  默认阈值: ${DEFAULT_IDLE_THRESHOLD}s"
+    echo "  重启检查: ${RESTART_CHECK_INTERVAL}s"
+    echo "  自动重启: ${AUTO_RESTART_ENABLED}"
     echo "  日志文件: $DAEMON_LOG_FILE"
     echo "  PID文件: $DAEMON_PID_FILE"
     echo ""
     echo "示例:"
-    echo "  $0 start    # 启动监控"
+    echo "  $0 start    # 启动监控（包含自动重启）"
     echo "  $0 status   # 查看状态"
     echo "  $0 stop     # 停止监控"
 }
